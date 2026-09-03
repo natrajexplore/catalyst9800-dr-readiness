@@ -1,0 +1,4 @@
+# This project runs under WSL/Linux -- keep LF line endings in the repo.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

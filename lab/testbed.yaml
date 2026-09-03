@@ -1,0 +1,63 @@
+testbed:
+  name: catalyst9800_dr_lab
+  credentials:
+    default:
+      username: admin
+      password: Cisco123!
+    enable:
+      password: Cisco123!
+
+# ---------------------------------------------------------------------------
+# Two Catalyst 9800 wireless controllers in an active / DR-standby design.
+#
+#   WLC-PRI  (LAB-DC1) - production controller, SSO HA pair
+#   WLC-SEC  (LAB-DC2) - disaster-recovery controller, SSO HA pair,
+#                        configured as the N+1 fallback for every AP
+#
+# There is no physical gear. Each device is a unicon mock that replays
+# realistic "show" output. app/connect.py points --mock_data_dir at the
+# scenario currently under test (healthy | failover) via the C9800DR_*
+# environment variables, so the exact same testbed drives both the
+# steady-state readiness run and the scripted failover.
+#
+# To run against real controllers: delete the "command:" line under each
+# connection and replace it with "protocol: ssh" + "ip:" + "port:".
+# ---------------------------------------------------------------------------
+
+devices:
+
+  WLC-PRI:
+    os: iosxe
+    type: wlc
+    platform: c9800
+    role: primary
+    custom:
+      site: LAB-DC1
+      mgmt_ip: 192.168.100.10
+      ha_peer: 192.168.100.12
+    connections:
+      cli:
+        command: mock_device_cli --os iosxe --mock_data_dir "%ENV{C9800DR_MOCK_ROOT}/wlc-pri/%ENV{C9800DR_SCENARIO}" --state connect
+        arguments:
+          learn_hostname: true
+          learn_tokens: false
+          init_exec_commands: []
+          init_config_commands: []
+
+  WLC-SEC:
+    os: iosxe
+    type: wlc
+    platform: c9800
+    role: fallback
+    custom:
+      site: LAB-DC2
+      mgmt_ip: 192.168.100.20
+      ha_peer: 192.168.100.22
+    connections:
+      cli:
+        command: mock_device_cli --os iosxe --mock_data_dir "%ENV{C9800DR_MOCK_ROOT}/wlc-sec/%ENV{C9800DR_SCENARIO}" --state connect
+        arguments:
+          learn_hostname: true
+          learn_tokens: false
+          init_exec_commands: []
+          init_config_commands: []

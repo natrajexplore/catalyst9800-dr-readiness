@@ -1,0 +1,181 @@
+# ===========================================================================
+# WLC-SEC  --  scenario: healthy  (DR standby controller, idle, config in sync)
+# Catalyst 9800-CL, IOS-XE 17.15.3, SSO HA pair, site LAB-DC2
+# Configured as the N+1 secondary controller for every AP. No APs joined here
+# while WLC-PRI is healthy; mobility tunnel to WLC-PRI is Up.
+# ===========================================================================
+connect:
+  preface: |-
+
+  commands:
+    "":
+      new_state: exec
+
+exec:
+  prompt: "WLC-SEC#"
+  commands:
+    "term length 0": ""
+    "term width 0": ""
+    "terminal length 0": ""
+    "terminal width 0": ""
+    "show version | include operating mode": ""
+    "show version | include Operating Mode": ""
+
+    "show version": |
+      Cisco IOS XE Software, Version 17.15.03
+      Cisco IOS Software [IOSXE], C9800 Software (C9800_IOSXE-K9), Version 17.15.3, RELEASE SOFTWARE (fc3)
+      Technical Support: http://www.cisco.com/techsupport
+      Copyright (c) 1986-2024 by Cisco Systems, Inc.
+      ROM: IOS-XE ROMMON
+      WLC-SEC uptime is 39 weeks, 5 days, 1 hour, 2 minutes
+      Uptime for this control processor is 39 weeks, 5 days, 1 hour, 4 minutes
+      System returned to ROM by reload
+      System image file is "bootflash:packages.conf"
+      Last reload reason: reload
+      cisco C9800-CL-K9 (VXE) processor (revision VXE) with 3921382K/3075K bytes of memory.
+      Processor board ID 9XYZABCD002
+      Base Ethernet MAC Address          : 00:1a:2b:3c:4d:20
+      Configuration register is 0x2102
+
+    "show redundancy": |
+      Redundant System Information :
+      ------------------------------
+      Available system uptime = 39 weeks, 5 days, 1 hour, 2 minutes
+      Switchovers system experienced = 0
+      Standby failures = 0
+      Last switchover reason = none
+      Hardware Mode = Duplex
+      Configured Redundancy Mode = sso
+      Operating Redundancy Mode = sso
+      Maintenance Mode = Disabled
+      Communications = Up
+      Current Processor Information :
+      ------------------------------
+      Active Location = slot 1
+      Current Software state = ACTIVE
+      Uptime in current state = 39 weeks, 5 days, 1 hour, 1 minute
+      Image Version = Cisco IOS Software [IOSXE], C9800 Software (C9800_IOSXE-K9), Version 17.15.3, RELEASE SOFTWARE (fc3)
+      BOOT = bootflash:packages.conf;
+      Configuration register = 0x2102
+      Peer Processor Information :
+      ------------------------------
+      Standby Location = slot 2
+      Current Software state = STANDBY HOT
+      Uptime in current state = 39 weeks, 5 days, 0 hours, 59 minutes
+      Image Version = Cisco IOS Software [IOSXE], C9800 Software (C9800_IOSXE-K9), Version 17.15.3, RELEASE SOFTWARE (fc3)
+      BOOT = bootflash:packages.conf;
+      Configuration register = 0x2102
+
+    "show wireless redundancy summary": |
+      Wireless Redundancy Mode : RMI+RP
+      RMI Health Check Interval : 1000 ms
+      Redundancy Management Interface (RMI) Local : 192.168.100.21 Vlan100 state UP
+      Redundancy Management Interface (RMI) Peer  : 192.168.100.23 Vlan100 state UP
+      Redundancy Port (RP) Local : 169.254.100.3 state UP
+      Redundancy Port (RP) Peer  : 169.254.100.4 state UP
+      Gateway reachability : REACHABLE
+
+    "show ip interface brief": |
+      Interface              IP-Address      OK? Method Status                Protocol
+      GigabitEthernet1       192.168.100.20  YES NVRAM  up                    up
+      GigabitEthernet2       unassigned      YES NVRAM  up                    up
+      Vlan1                  unassigned      YES NVRAM  administratively down  down
+      Vlan100                192.168.100.20  YES NVRAM  up                    up
+      Vlan200                192.168.200.20  YES NVRAM  up                    up
+
+    "show wireless interface summary": |
+      Interface Name    Interface Type   VLAN ID   IP Address        IP Netmask         MAC Address
+      ----------------------------------------------------------------------------------------------
+      Vlan100           Management       100       192.168.100.20    255.255.255.0      001a.2b3c.4d20
+      Vlan200           WLC              200       192.168.200.20    255.255.255.0      001a.2b3c.4d21
+
+    "show wlan summary": |
+      Number of WLANs: 2
+      ID   Profile Name                     SSID                             Status Security
+      ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      10   CORP-WIFI                        CORP-WIFI                        UP     [WPA2][WPA3][802.1x][AES]
+      20   CORP-VOICE                       CORP-VOICE                       UP     [WPA2][802.1x][AES]
+
+    "show ap summary": |
+      Number of APs: 0
+      AP Name                            Slots    AP Model  Ethernet MAC    Radio MAC       Location                          Country     IP Address                                 State
+      -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    "show ap config general": |
+      % No APs are joined to this controller
+
+    "show ap primary list": |
+      AP Name                           Primary Name      Primary IP        Secondary Name    Secondary IP
+      --------------------------------------------------------------------------------------------------------
+
+    "show wireless client summary": |
+      Number of Clients: 0
+      MAC Address    AP Name                                        Type ID   State             Protocol Method     Role
+      -------------------------------------------------------------------------------------------------------------------------
+      Number of Excluded Clients: 0
+
+    "show wireless mobility summary": |
+      Mobility Summary
+      Wireless Management VLAN: 100
+      Wireless Management IP Address: 192.168.100.20
+      Wireless Management IPv6 Address:
+      Mobility Control Message DSCP Value: 48
+      Mobility Keepalive Interval/Count: 10/3
+      Mobility Group Name: LAB-DR-GROUP
+      Mobility Multicast Ipv4 address: 0.0.0.0
+      Mobility Multicast Ipv6 address: ::
+      Mobility MAC Address: 001a.2b3c.4d20
+      Mobility Domain Identifier: 0x4c61
+      Controllers configured in the Mobility Domain:
+      IP                                        Public Ip                                  MAC Address         Group Name                       Multicast IPv4    Multicast IPv6                              Status                       PMTU
+      --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      192.168.100.20                            N/A                                        001a.2b3c.4d20      LAB-DR-GROUP                     0.0.0.0           ::                                          N/A                          N/A
+      192.168.100.10                            192.168.100.10                             001a.2b3c.4d10      LAB-DR-GROUP                     0.0.0.0           ::                                          Up                           1385
+
+    "show wireless stats ap join summary": |
+      Number of APs: 0
+      Base MAC        Ethernet MAC    AP Name                           IP Address                                Status      Last Failure Phase    Last Disconnect Reason
+      ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    "show ap cdp neighbor": |
+      Number of neighbors: 0
+      AP Name                          AP IP                                     Neighbor Name      Neighbor Port
+      -------------------------------------------------------------------------------------------------------------
+
+    "show cdp neighbors detail": |
+      -------------------------
+      Device ID: DC2-CORE-SW1.lab.local
+      Entry address(es):
+        IP address: 192.168.100.3
+      Platform: cisco C9500-24Y4C,  Capabilities: Router Switch IGMP
+      Interface: GigabitEthernet1,  Port ID (outgoing port): TenGigabitEthernet1/0/1
+      Holdtime : 149 sec
+      Version :
+      Cisco IOS Software [IOSXE], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.12.3
+      advertisement version: 2
+      Duplex: full
+      -------------------------
+      Device ID: DC2-CORE-SW2.lab.local
+      Entry address(es):
+        IP address: 192.168.100.4
+      Platform: cisco C9500-24Y4C,  Capabilities: Router Switch IGMP
+      Interface: GigabitEthernet2,  Port ID (outgoing port): TenGigabitEthernet1/0/1
+      Holdtime : 158 sec
+      Version :
+      Cisco IOS Software [IOSXE], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.12.3
+      advertisement version: 2
+      Duplex: full
+
+    "show aaa servers": |
+      RADIUS: id 1, priority 1, host 192.168.50.10, auth-port 1812, acct-port 1813, hostname ISE-PRIMARY
+      State: current UP, duration 3410222s, previous duration 0s
+      Dead: total time 0s, count 0
+      Quarantined: No
+      RADIUS: id 2, priority 2, host 192.168.50.11, auth-port 1812, acct-port 1813, hostname ISE-SECONDARY
+      State: current UP, duration 3410221s, previous duration 0s
+      Dead: total time 0s, count 0
+      Quarantined: No
+
+    "show ntp status": |
+      Clock is synchronized, stratum 3, reference is 192.168.50.5
+      nominal freq is 250.0000 Hz, actual freq is 250.0000 Hz, precision is 2**24

@@ -1,0 +1,35 @@
+# virtualenvs
+venv/
+.venv/
+env/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# pyATS run artifacts
+archive/
+runinfo/
+*.log
+/tests/**/logs/
+
+# generated reports (keep the folder, not the contents)
+/reports/*.json
+/reports/*.html
+
+# scratch
+.smoke.sh
+.warm.sh
+.poll.sh
+.chk.py
+scratch_probe.py
+/sp2/
+/spike*/
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalyst 9800 Wireless DR Readiness</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#172230; --panel2:#1e2c3d; --line:#2b3a4d;
+    --ink:#e8eef5; --muted:#93a4b8; --accent:#3ea6ff;
+    --pass:#3fb950; --warn:#d29922; --fail:#f85149; --standby:#8b949e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  header{padding:18px 24px;border-bottom:1px solid var(--line);
+         display:flex;align-items:center;gap:24px;flex-wrap:wrap;background:var(--panel)}
+  header h1{font-size:17px;margin:0;font-weight:600}
+  header .sub{color:var(--muted);font-size:12.5px}
+  .wrap{max-width:1500px;margin:0 auto;padding:20px 24px;display:grid;
+        grid-template-columns:minmax(0,1fr) 420px;gap:20px}
+  .wrap.stack{grid-template-columns:minmax(0,1fr)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .panel.hot{box-shadow:0 0 0 2px var(--accent),0 0 34px rgba(62,166,255,.25)}
+  .panel h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+            margin:0;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
+  .panel .body{padding:14px 16px}
+  .full{grid-column:1/-1}
+
+  /* gauge / score */
+  .score{display:flex;align-items:center;gap:16px}
+  .donut{--v:0;width:74px;height:74px;border-radius:50%;flex:0 0 auto;
+    background:conic-gradient(var(--gc) calc(var(--v)*1%), #24344a 0);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
+  .donut span{width:54px;height:54px;border-radius:50%;background:var(--panel);
+    display:flex;align-items:center;justify-content:center}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;
+        letter-spacing:.04em}
+  .pill.PASS{background:rgba(63,185,80,.16);color:var(--pass)}
+  .pill.WARN{background:rgba(210,153,34,.16);color:var(--warn)}
+  .pill.FAIL{background:rgba(248,81,73,.16);color:var(--fail)}
+
+  /* checks */
+  .chk{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--panel2)}
+  .chk>summary{list-style:none;cursor:pointer;padding:10px 12px;display:flex;gap:10px;align-items:flex-start}
+  .chk>summary::-webkit-details-marker{display:none}
+  .chk .dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:0 0 auto}
+  .dot.PASS{background:var(--pass)} .dot.WARN{background:var(--warn)} .dot.FAIL{background:var(--fail)}
+  .chk .t{font-weight:600}
+  .chk .d{color:var(--muted);font-size:12.5px}
+  .chk .more{padding:0 12px 12px 32px;font-size:12.5px}
+  .chk .more code{display:block;white-space:pre-wrap;color:var(--muted);
+    background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0}
+  .chk .fix{color:var(--accent)}
+  .cat{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-left:auto}
+
+  /* topology */
+  .netbox{position:relative}
+  #net{height:560px;background:radial-gradient(circle at 50% 40%,#16222f,#0f1720)}
+  #netBanner{position:absolute;left:0;right:0;top:0;padding:9px 16px;text-align:center;
+    font-weight:700;font-size:13px;letter-spacing:.02em;color:#04121f;
+    background:var(--accent);transform:translateY(-100%);transition:transform .3s;z-index:5}
+  #netBanner.show{transform:translateY(0)}
+  #netBanner.evt{background:var(--fail);color:#fff}
+  #netBanner.ok{background:var(--pass);color:#04121f}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);
+          font-size:11.5px;color:var(--muted)}
+  .legend i{display:inline-block;width:20px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+
+  /* device action popup */
+  #devPopup{position:fixed;z-index:50;min-width:262px;max-width:320px;background:var(--panel);
+    border:1px solid var(--accent);border-radius:10px;padding:12px;display:none;
+    box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  #devPopup h4{margin:0 0 2px;font-size:14px}
+  #devPopup .ip{color:var(--muted);font-size:12px;margin-bottom:10px}
+  #devPopup button{display:block;width:100%;text-align:left;margin-top:6px;padding:8px 10px;
+    border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+    cursor:pointer;font-size:12.5px}
+  #devPopup button:hover{border-color:var(--accent)}
+  #devPopup button.dis{opacity:.4;cursor:not-allowed}
+  #devPopup code{display:block;margin-top:8px;padding:7px 9px;background:var(--bg);
+    border:1px solid var(--line);border-radius:6px;font-size:12px;color:var(--accent);word-break:break-all}
+  #devPopup .x{position:absolute;top:6px;right:9px;color:var(--muted);cursor:pointer;font-size:16px}
+
+  /* timeline */
+  .tl-controls{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+  button.play{background:var(--accent);color:#04121f;border:0;border-radius:7px;padding:7px 14px;
+    font-weight:700;cursor:pointer}
+  button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);
+    border-radius:7px;padding:7px 12px;cursor:pointer}
+  .tl{position:relative;margin-left:8px;border-left:2px solid var(--line);padding-left:16px}
+  .tl .ev{position:relative;padding:8px 0;opacity:.35;transition:opacity .25s}
+  .tl .ev.on{opacity:1}
+  .tl .ev::before{content:"";position:absolute;left:-23px;top:13px;width:10px;height:10px;
+    border-radius:50%;background:var(--line);border:2px solid var(--panel)}
+  .tl .ev.on::before{background:var(--accent)}
+  .tl .ev[data-phase="event"].on::before,.tl .ev[data-phase="detection"].on::before{background:var(--fail)}
+  .tl .ev[data-phase="recovered"].on::before{background:var(--pass)}
+  .tl .clock{font-variant-numeric:tabular-nums;color:var(--muted);font-size:11.5px}
+  .tl .hl{font-weight:600}
+  .tl .dt{color:var(--muted);font-size:12.5px}
+  .tl .ev.gate{opacity:1}
+  .tl .ev.gate::before{background:var(--warn);width:12px;height:12px;left:-24px}
+
+  /* operator trigger */
+  #trigger{margin:14px 0 4px;padding:14px;border:1px dashed var(--warn);border-radius:9px;
+    background:rgba(210,153,34,.06)}
+  #trigger h3{margin:0 0 4px;font-size:13px;color:var(--warn)}
+  #trigger .sub{margin-bottom:12px}
+  .mrow{display:flex;gap:12px;flex-wrap:wrap}
+  .method-btn{flex:1 1 300px;text-align:left;background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;padding:12px 14px;cursor:pointer;color:var(--ink)}
+  .method-btn:hover,.method-btn.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .method-btn b{display:block;font-size:13px;margin-bottom:3px}
+  .method-btn .w{color:var(--accent);font-size:11.5px;font-family:monospace}
+  .method-btn .m{color:var(--muted);font-size:12px;margin-top:5px}
+  .cmds{margin-top:12px}
+  .cmds pre{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px;
+    margin:6px 0;font:12px/1.55 ui-monospace,Menlo,Consolas,monospace;color:#cbd5e1;overflow-x:auto}
+  .cmds .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .cmds button{background:var(--accent);color:#04121f;border:0;border-radius:6px;
+    padding:6px 12px;font-weight:700;cursor:pointer;font-size:12px}
+  .cmds button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .cmds .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+  .kv b{color:var(--muted);font-weight:500}
+  table.mini{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.mini td{padding:4px 6px;border-bottom:1px solid var(--line)}
+  @media(max-width:1080px){.wrap{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Catalyst 9800 &nbsp;·&nbsp; Wireless Disaster-Recovery Readiness</h1>
+    <div class="sub" id="headerSub">WLC-PRI (LAB-DC1) &rarr; WLC-SEC (LAB-DC2) &nbsp;·&nbsp; N+1 AP fallback &nbsp;·&nbsp; pyATS + Genie over unicon mock CLI</div>
+  </div>
+  <div class="score" style="margin-left:auto">
+    <div class="donut" id="donut"><span id="scoreTxt">–</span></div>
+    <div>
+      <div class="pill" id="overallPill">–</div>
+      <div class="sub" id="countTxt"></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap" id="wrap">
+
+  <div class="panel full" id="failoverPanel">
+    <h2>Scripted site failover &nbsp;·&nbsp; LAB-DC1 outage</h2>
+    <div class="body">
+      <div class="tl-controls">
+        <button class="play" id="playBtn">&#9654; Play failover</button>
+        <button class="ghost" id="resetBtn">Reset</button>
+        <span class="sub" id="phaseTxt"></span>
+        <span class="sub" style="margin-left:auto" id="rtoTxt"></span>
+      </div>
+      <div class="tl" id="timeline"></div>
+      <div id="trigger" hidden></div>
+    </div>
+  </div>
+
+
+  <div class="panel full" id="topoPanel">
+    <h2>Topology &nbsp;·&nbsp; <span id="topoState">steady state</span>
+        &nbsp;<span class="sub" style="text-transform:none;letter-spacing:0">— click a device for CLI / Web UI</span></h2>
+    <div class="netbox">
+      <div id="netBanner"></div>
+      <div id="net"></div>
+    </div>
+    <div class="legend">
+      <span><i style="border-color:var(--accent)"></i>CAPWAP (active)</span>
+      <span><i style="border-color:var(--standby);border-top-style:dashed"></i>configured secondary</span>
+      <span><i style="border-color:var(--pass)"></i>mobility tunnel</span>
+      <span><i style="border-color:var(--fail)"></i>down</span>
+      <span><i style="border-color:var(--muted)"></i>uplink / access / RADIUS</span>
+    </div>
+  </div>
+
+  <div class="panel full">
+    <h2 id="checksH2">DR readiness checks &nbsp;·&nbsp; steady state</h2>
+    <div class="body" id="checks"></div>
+  </div>
+
+  <div class="panel full" id="diffPanel">
+    <h2>Before &rarr; After</h2>
+    <div class="body" id="diff"></div>
+  </div>
+</div>
+
+<div id="devPopup">
+  <span class="x" id="devPopupX">&times;</span>
+  <h4 id="dpName">device</h4>
+  <div class="ip" id="dpIp"></div>
+  <button id="dpGui">&#127760;&nbsp; Open device Web UI</button>
+  <button id="dpCli">&#128421;&nbsp; CLI &mdash; copy SSH command</button>
+  <code id="dpOut" hidden></code>
+</div>
+
+<script>
+const RESULT = {{ result | tojson }};
+const COLORS = getComputedStyle(document.documentElement);
+const c = n => COLORS.getPropertyValue(n).trim();
+
+/* ---------- score header (steady-state readiness) ---------- */
+(function(){
+  const r = RESULT.before.readiness;
+  const gc = r.overall==='PASS'?c('--pass'):r.overall==='WARN'?c('--warn'):c('--fail');
+  const d = document.getElementById('donut');
+  d.style.setProperty('--gc', gc); d.style.setProperty('--v', r.score);
+  d.style.background = `conic-gradient(${gc} ${r.score}%, #24344a 0)`;
+  document.getElementById('scoreTxt').textContent = r.score + '%';
+  const p = document.getElementById('overallPill');
+  p.textContent = r.overall; p.className = 'pill ' + r.overall;
+  document.getElementById('countTxt').textContent =
+    `${r.counts.pass} pass · ${r.counts.warn} warn · ${r.counts.fail} fail`;
+  document.getElementById('rtoTxt').textContent = RESULT.rpo_rto.modelled_rto_seconds
+    ? 'modelled RTO ≈ ' + RESULT.rpo_rto.modelled_rto_seconds + 's' : '';
+})();
+
+/* ---------- checks ---------- */
+(function(){
+  const host = document.getElementById('checks');
+  RESULT.before.readiness.checks.forEach(ch=>{
+    const el = document.createElement('details'); el.className='chk';
+    el.innerHTML = `
+      <summary>
+        <span class="dot ${ch.status}"></span>
+        <span>
+          <span class="t">${ch.title}</span><br>
+          <span class="d">${ch.detail}</span>
+        </span>
+        <span class="cat">${ch.category}</span>
+      </summary>
+      <div class="more">
+        <code>${ch.evidence.map(e=>e.replace(/</g,'&lt;')).join('\n')}</code>
+        ${ch.status!=='PASS' && ch.remediation ? `<div class="fix">▸ ${ch.remediation}</div>`:''}
+      </div>`;
+    host.appendChild(el);
+  });
+})();
+
+/* ---------- diff ---------- */
+(function(){
+  const d = RESULT.diff, host = document.getElementById('diff');
+  host.innerHTML = `
+    <div class="kv">
+      <b>APs failed over</b><span>${d.aps_failed_over_count} — ${d.aps_failed_over.join(', ')||'none'}</span>
+      <b>APs on WLC-PRI (before)</b><span>${d.aps_on_pri_before.join(', ')||'none'}</span>
+      <b>APs on WLC-SEC (after)</b><span>${d.aps_on_sec_after.join(', ')||'none'}</span>
+      <b>Clients</b><span>${d.clients_before_pri} on WLC-PRI → ${d.clients_after_sec} on WLC-SEC</span>
+      <b>WLC-PRI reachable after</b><span>${d.primary_reachable_after}</span>
+      <b>Readiness</b><span>
+        <span class="pill ${d.readiness_before}">${d.readiness_before}</span> steady →
+        <span class="pill ${d.readiness_after}">${d.readiness_after}</span> during outage</span>
+    </div>`;
+})();
+
+/* ---------- topology ---------- */
+const SSH_USER = {{ ssh_user | tojson }};
+const GSIZE = {controller:34, core_switch:28, access_switch:22, ap:24, aaa:26};
+const netBanner = document.getElementById('netBanner');
+
+function edgeStyle(e){
+  if(e.status==='discovering') return {color:c('--warn'),dashes:[6,6],width:2};
+  if(e.status==='down')        return {color:c('--fail'),dashes:[2,4],width:2};
+  if(e.status==='standby')     return {color:c('--standby'),dashes:[4,4],width:1};
+  if(e.type==='mobility')      return {color:c('--pass'),width:2};
+  if(e.type==='capwap')        return {color:c('--accent'),width:2};
+  return {color:c('--line'),width:1};
+}
+
+/* synthesize the mid-failover "transition" topology from the healthy one:
+   WLC-PRI dead, its CAPWAP tunnels lost, APs discovering the secondary. */
+function transitionTopo(){
+  const base = RESULT.before.topology;
+  const nodes = base.nodes.map(n =>
+    n.id==='WLC-PRI' ? {...n, reachable:false, status:'down'} : {...n});
+  const edges = [];
+  const migrating = new Set();
+  base.edges.forEach(e=>{
+    if(e.type==='capwap' && e.source==='WLC-PRI'){
+      edges.push({...e, status:'down', label:'lost'}); migrating.add(e.target);
+    } else if(e.type==='capwap_standby'){
+      edges.push({...e, type:'capwap', status:'discovering', label:'discovering…'});
+      migrating.add(e.target);
+    } else if(e.type==='mobility'){
+      edges.push({...e, status:'down'});
+    } else edges.push(e);
+  });
+  return {nodes, edges, migrating:[...migrating]};
+}
+const TOPO = {
+  before:     RESULT.before.topology,
+  transition: transitionTopo(),
+  after:      RESULT.after.topology,
+};
+
+let network, curState=null, dsNodes, dsEdges;
+function drawTopo(which){
+  const topo = TOPO[which] || RESULT.before.topology;
+  const nodes = topo.nodes.map(n=>{
+    const dead = (n.type==='controller' && n.reachable===false);
+    const mig = which==='transition' && (topo.migrating||[]).includes(n.id);
+    const node = {
+      id:n.id, label:n.label,
+      shape: n.icon ? 'image' : 'dot',
+      image: n.icon || undefined,
+      size: (GSIZE[n.type] || 20) * (mig?1.25:1),
+      font:{color:'#c9d6e2', size:12, strokeWidth:3, strokeColor:'#0f1720'},
+      opacity: dead ? 0.3 : 1,
+      borderWidth: mig?3:0, color: mig?{border:c('--warn')}:undefined,
+      _ip: n.ip || n.mgmt_ip || null, _type:n.type,
+      _platform: n.platform || n.model || null,
+      title:Object.entries(n).filter(([k])=>!['id','label','type','icon','ip','mgmt_ip'].includes(k))
+              .map(([k,v])=>`${k}: ${v}`).join('\n'),
+    };
+    if(dead){ node.color={background:'#3d2020',border:c('--fail')}; node.borderWidth=2; }
+    return node;
+  });
+  const edges = topo.edges.map((e,i)=>({
+    id:i, from:e.source, to:e.target, label:e.label||'',
+    arrows: e.type==='capwap_standby'?'':'to',
+    ...edgeStyle(e), font:{size:9,color:'#7d8ea3',strokeWidth:0}
+  }));
+  if(!network){
+    dsNodes=new vis.DataSet(nodes); dsEdges=new vis.DataSet(edges);
+    network=new vis.Network(document.getElementById('net'),
+      {nodes:dsNodes,edges:dsEdges},{
+        physics:{stabilization:true,barnesHut:{springLength:150,avoidOverlap:0.6}},
+        interaction:{hover:true,tooltipDelay:120},
+        nodes:{borderWidth:0},
+      });
+    network.on('click', onNetClick);
+  } else {
+    const keep=new Set(nodes.map(n=>n.id));
+    dsNodes.remove(dsNodes.getIds().filter(id=>!keep.has(id)));
+    dsNodes.update(nodes); dsEdges.clear(); dsEdges.add(edges);
+  }
+  curState=which;
+  document.getElementById('topoState').textContent =
+        which==='before' ? 'steady state'
+      : which==='transition' ? 'FAILING OVER — APs discovering WLC-SEC'
+      : 'recovered on WLC-SEC (LAB-DC1 down)';
+}
+function showBanner(text, cls){
+  netBanner.className = 'show ' + (cls||'');
+  netBanner.textContent = text;
+}
+function hideBanner(){ netBanner.className=''; }
+drawTopo('before');
+
+/* ---------- device CLI / GUI popup ---------- */
+const pop = document.getElementById('devPopup');
+const dpOut = document.getElementById('dpOut');
+let popNode = null;
+const LIVE = false;   // demo build -- device popups open the simulated login page
+function esc2(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+
+function onNetClick(params){
+  if(!params.nodes.length){ pop.style.display='none'; return; }
+  const n = dsNodes.get(params.nodes[0]);
+  popNode = n;
+  document.getElementById('dpName').textContent = n.label;
+  document.getElementById('dpIp').textContent =
+    (n._ip || 'no management IP discovered') + (n._platform ? '  ·  ' + n._platform : '');
+  dpOut.hidden = true; dpOut.innerHTML='';
+  const noGui = (n._type==='ap' || !n._ip);
+  document.getElementById('dpGui').classList.toggle('dis', noGui && !LIVE);
+  const p = params.pointer.DOM;
+  const box = document.getElementById('net').getBoundingClientRect();
+  pop.style.left = Math.min(box.left+p.x+12, window.innerWidth-280) + 'px';
+  pop.style.top  = Math.min(box.top+p.y+12, window.innerHeight-260) + 'px';
+  pop.style.display = 'block';
+}
+function show(html){ dpOut.hidden=false; dpOut.innerHTML = html; }
+
+document.getElementById('devPopupX').onclick = ()=> pop.style.display='none';
+
+document.getElementById('dpCli').onclick = ()=>{
+  if(!popNode) return;
+  const ip = popNode._ip || popNode.label;
+  const cmd = `ssh ${SSH_USER}@${ip}`;
+  navigator.clipboard && navigator.clipboard.writeText(cmd).catch(()=>{});
+  show(esc2(cmd) + (LIVE ? ' &nbsp;(copied — paste in a terminal)'
+                         : ' &nbsp;(copied — demo IP; run --live for the real device)'));
+  if(LIVE){ try{ window.location.href = 'ssh://' + SSH_USER + '@' + ip; }catch(e){} }
+};
+
+document.getElementById('dpGui').onclick = (e)=>{
+  if(!popNode || e.target.classList.contains('dis')) return;
+  const ip = popNode._ip;
+  if(LIVE && ip){
+    // deep-link straight to the relevant page of the genuine Cisco Web UI
+    const t = popNode._type;
+    let url = 'https://' + ip + '/';
+    if(t==='controller') url = 'https://' + ip + '/webui/';
+    else if(t==='aaa')   url = 'https://' + ip + '/admin/';
+    else if(t==='ap'){
+      const wlc = (RESULT.before.topology.edges.find(x=>x.type==='capwap'&&x.target===popNode.id)||{}).source;
+      const wip = wlc && (dsNodes.get(wlc)||{})._ip;
+      url = wip ? 'https://'+wip+'/webui/#/monitor/wireless/aps'
+                : 'https://'+ip+'/';   // standalone / ME-mode AP
+    }
+    window.open(url, '_blank', 'noopener');
+    show('opening <b>' + esc2(url) + '</b>');
+  } else if(ip){
+    window.open('/mock/webui?dev=' + encodeURIComponent(popNode.label)
+                + '&ip=' + encodeURIComponent(ip), '_blank', 'noopener');
+    show('opened the simulated C9800 login page for ' + esc2(popNode.label));
+  } else {
+    show('no management IP for this node — it was discovered only by name');
+  }
+};
+
+document.addEventListener('click', ev=>{
+  if(!pop.contains(ev.target) && ev.target.tagName!=='CANVAS') pop.style.display='none';
+});
+
+/* ---------- operator-driven failover playback ---------- */
+(function(){
+  const host=document.getElementById('timeline');
+  const trigger=document.getElementById('trigger');
+  const playBtn=document.getElementById('playBtn');
+  const resetBtn=document.getElementById('resetBtn');
+  const phaseTxt=document.getElementById('phaseTxt');
+  const rtoTxt=document.getElementById('rtoTxt');
+  const topoPanel=document.getElementById('topoPanel');
+
+  const PRE=RESULT.pre||[], GATE=RESULT.gate||{}, METHODS=RESULT.methods||{};
+  const RTOMAX=RESULT.rpo_rto.modelled_rto_seconds;
+  let steps=[], rows=[], timer=null, idx=-1, method=null, atEnd=false;
+
+  const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+  function rowFor(ev,cls){
+    const el=document.createElement('div');
+    el.className='ev '+(cls||''); el.dataset.phase=ev.phase||'';
+    el.innerHTML=`<div class="clock">${ev.clock||''}${ev.phase?(' · '+ev.phase):''}</div>
+      <div class="hl">${esc(ev.headline)}</div><div class="dt">${esc(ev.detail||'')}</div>`;
+    return el;
+  }
+  function buildInitial(){
+    host.innerHTML=''; rows=[]; steps=[];
+    PRE.forEach(ev=>{ const r=rowFor(ev); host.appendChild(r); rows.push(r); steps.push(ev); });
+    const g=rowFor({headline:GATE.headline||'Operator action', detail:GATE.detail||''}, 'gate');
+    host.appendChild(g); rows.push(g); steps.push({__gate:true});
+  }
+  function pause(){ if(timer){clearInterval(timer); timer=null;} }
+
+  function drawFor(ev){
+    if(!ev || !ev.topo) return;
+    if(ev.topo!==curState){
+      drawTopo(ev.topo); network.fit({animation:{duration:600}});
+      topoPanel.classList.add('hot');
+      topoPanel.scrollIntoView({behavior:'smooth',block:'center'});
+      if(ev.topo==='transition') showBanner('⚡  '+ev.headline,'evt');
+      else if(ev.topo==='after') showBanner('✔  Wireless restored on WLC-SEC — '
+        +RESULT.diff.aps_failed_over_count+' APs migrated','ok');
+      else hideBanner();
+    } else if(ev.phase==='event'){ showBanner('⚡  '+ev.headline,'evt'); }
+  }
+  function applyIdx(i){
+    rows.forEach((r,k)=>r.classList.toggle('on',k<=i));
+    const s=steps[i]; if(!s) return;
+    if(s.__gate){
+      pause(); playBtn.innerHTML='&#9654; Play failover';
+      phaseTxt.textContent='awaiting operator — choose a trigger below';
+      renderTrigger(); topoPanel.scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+    phaseTxt.textContent=`${s.clock} — ${s.headline}`;
+    drawFor(s);
+  }
+  function tick(){ idx++; if(idx>=steps.length){ finish(); return; } applyIdx(idx); }
+  function play(){ pause(); playBtn.innerHTML='&#10073;&#10073; Pause'; timer=setInterval(tick,1600); tick(); }
+
+  function cmdBlock(title,lines){
+    return `<div class="cmds"><div class="lbl">${title}</div>
+      <div class="row">
+        <button data-copy="${encodeURIComponent(lines.join('\n'))}">Copy</button>
+        <span class="sub">run these on the device</span>
+      </div><pre>${lines.map(esc).join('\n')}</pre></div>`;
+  }
+  function wireCopy(scope){
+    scope.querySelectorAll('button[data-copy]').forEach(b=>b.onclick=()=>{
+      navigator.clipboard && navigator.clipboard.writeText(decodeURIComponent(b.dataset.copy)).catch(()=>{});
+      const t=b.textContent; b.textContent='Copied'; setTimeout(()=>b.textContent=t,1200);
+    });
+  }
+  function renderTrigger(){
+    trigger.hidden=false;
+    trigger.innerHTML=`<h3>&#9888; Operator action — trigger the LAB-DC1 outage</h3>
+      <div class="sub">${esc(GATE.detail||'')}</div>
+      <div class="mrow">${Object.entries(METHODS).map(([k,m])=>`
+        <button class="method-btn" data-k="${k}">
+          <b>${esc(m.label)}</b><span class="w">${esc(m.where)}</span>
+          <div class="m">${esc(m.summary)} &nbsp;·&nbsp; RTO ≈ ${m.rto_s}s</div>
+        </button>`).join('')}</div>
+      <div id="tcmds"></div>`;
+    trigger.querySelectorAll('.method-btn').forEach(b=>b.onclick=()=>chooseMethod(b.dataset.k,b));
+  }
+  function chooseMethod(k,btn){
+    method=k; const m=METHODS[k];
+    trigger.querySelectorAll('.method-btn').forEach(x=>x.classList.toggle('sel',x===btn));
+    document.getElementById('tcmds').innerHTML =
+      cmdBlock('&#9312; shutdown — this triggers the failover', m.commands) +
+      `<div class="cmds"><div class="row" style="margin-top:12px">
+         <button id="contBtn">&#9654; Continue — outage triggered</button>
+         <span class="sub">${LIVE?'click after the shutdown is applied and WLC-PRI is confirmed down'
+                                 :'demo: click to continue the simulation'}</span>
+       </div></div>`;
+    wireCopy(trigger);
+    rtoTxt.textContent='modelled RTO ≈ '+m.rto_s+'s';
+    document.getElementById('contBtn').onclick=()=>startMethod(k);
+  }
+  function startMethod(k){
+    trigger.hidden=true;
+    METHODS[k].steps.forEach(ev=>{ const r=rowFor(ev); host.appendChild(r); rows.push(r); steps.push(ev); });
+    topoPanel.scrollIntoView({behavior:'smooth',block:'center'});
+    play();
+  }
+  function finish(){
+    pause(); atEnd=true; topoPanel.classList.remove('hot');
+    playBtn.innerHTML='&#9654; Replay';
+    if(method){
+      trigger.hidden=false;
+      trigger.innerHTML=`<h3 style="color:var(--pass)">&#10003; Failover complete — restore when LAB-DC1 is back</h3>`
+        + cmdBlock('&#9313; no shutdown — restore the primary path', METHODS[method].restore);
+      wireCopy(trigger);
+    }
+  }
+  function doReset(){
+    pause(); idx=-1; method=null; atEnd=false;
+    phaseTxt.textContent=''; playBtn.innerHTML='&#9654; Play failover';
+    rtoTxt.textContent = RTOMAX ? 'modelled RTO ≈ up to '+RTOMAX+'s' : '';
+    trigger.hidden=true; trigger.innerHTML='';
+    hideBanner(); topoPanel.classList.remove('hot');
+    buildInitial(); drawTopo('before'); if(network) network.fit({animation:true});
+  }
+
+  playBtn.onclick=()=>{
+    if(timer){ pause(); playBtn.innerHTML='&#9654; Resume'; return; }
+    if(atEnd){ doReset(); }
+    const cur=steps[idx];
+    if(cur && cur.__gate && !method){
+      phaseTxt.textContent='↑ choose a trigger method first'; renderTrigger(); return;
+    }
+    play();
+  };
+  resetBtn.onclick=doReset;
+
+  buildInitial();
+  rtoTxt.textContent = RTOMAX ? 'modelled RTO ≈ up to '+RTOMAX+'s' : '';
+})();
+</script>
+</body>
+</html>

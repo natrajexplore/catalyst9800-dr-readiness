@@ -1,0 +1,6 @@
+# Catalyst 9800 wireless DR readiness toolkit
+#
+# pyATS + Genie are Linux/macOS only -- on Windows run this project under WSL2
+# (see README.md). "pyats[library]" pulls genie + unicon + the parser library.
+pyats[library]>=25.1
+flask>=3.0
