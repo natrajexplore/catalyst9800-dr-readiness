@@ -5,23 +5,43 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Catalyst 9800 Wireless DR Readiness</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.3/dist/3d-force-graph.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three-spritetext@1.9.3/dist/three-spritetext.min.js"></script>
 <style>
   :root{
     --bg:#0f1720; --panel:#172230; --panel2:#1e2c3d; --line:#2b3a4d;
     --ink:#e8eef5; --muted:#93a4b8; --accent:#3ea6ff;
     --pass:#3fb950; --warn:#d29922; --fail:#f85149; --standby:#8b949e;
+    --netA:#16222f; --netB:#0f1720;
+  }
+  :root[data-theme="light"]{
+    --bg:#f3f5f8; --panel:#ffffff; --panel2:#eef1f5; --line:#d7dee6;
+    --ink:#182230; --muted:#5b6b7d; --accent:#1868c7;
+    --pass:#1f9d4b; --warn:#9a6a04; --fail:#cf3a33; --standby:#6b7785;
+    --netA:#e4eaf1; --netB:#f3f5f8;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);
+  body{margin:0;background:var(--bg);color:var(--ink);transition:background .25s,color .25s;
        font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .themeToggle{display:flex;gap:6px;margin-left:16px}
+  .themeToggle button{background:var(--panel2);color:var(--muted);border:1px solid var(--line);
+    border-radius:6px;padding:5px 11px;font-size:11px;font-weight:700;letter-spacing:.04em;cursor:pointer}
+  .themeToggle button.on{background:var(--accent);color:#04121f;border-color:var(--accent)}
   header{padding:18px 24px;border-bottom:1px solid var(--line);
-         display:flex;align-items:center;gap:24px;flex-wrap:wrap;background:var(--panel)}
+         display:flex;align-items:center;gap:24px;flex-wrap:wrap;background:var(--panel);
+         box-shadow:0 1px 0 rgba(0,0,0,.08),0 2px 14px rgba(0,0,0,.08);position:relative;z-index:2;
+         transition:background .25s,border-color .25s}
+  header::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+    background:linear-gradient(90deg,var(--accent),var(--pass) 45%,var(--warn) 75%,var(--fail))}
   header h1{font-size:17px;margin:0;font-weight:600}
   header .sub{color:var(--muted);font-size:12.5px}
   .wrap{max-width:1500px;margin:0 auto;padding:20px 24px;display:grid;
         grid-template-columns:minmax(0,1fr) 420px;gap:20px}
   .wrap.stack{grid-template-columns:minmax(0,1fr)}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(0,0,0,.06),0 6px 20px rgba(0,0,0,.06);
+    transition:background .25s,border-color .25s,box-shadow .2s}
+  .panel:hover{box-shadow:0 1px 2px rgba(0,0,0,.08),0 8px 26px rgba(0,0,0,.1)}
   .panel.hot{box-shadow:0 0 0 2px var(--accent),0 0 34px rgba(62,166,255,.25)}
   .panel h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
             margin:0;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
@@ -31,7 +51,8 @@
   /* gauge / score */
   .score{display:flex;align-items:center;gap:16px}
   .donut{--v:0;width:74px;height:74px;border-radius:50%;flex:0 0 auto;
-    background:conic-gradient(var(--gc) calc(var(--v)*1%), #24344a 0);
+    background:conic-gradient(var(--gc) calc(var(--v)*1%), var(--panel2) 0);
+    box-shadow:inset 0 0 0 1px var(--line);
     display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
   .donut span{width:54px;height:54px;border-radius:50%;background:var(--panel);
     display:flex;align-items:center;justify-content:center}
@@ -57,7 +78,12 @@
 
   /* topology */
   .netbox{position:relative}
-  #net{height:560px;background:radial-gradient(circle at 50% 40%,#16222f,#0f1720)}
+  #net{height:560px;background:radial-gradient(circle at 50% 40%,var(--netA),var(--netB))}
+  #net3d{height:560px;background:radial-gradient(circle at 50% 40%,var(--netA),var(--netB));display:none}
+  .viewToggle{display:flex;gap:6px;margin-left:12px}
+  .viewToggle button{background:var(--panel2);color:var(--muted);border:1px solid var(--line);
+    border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;cursor:pointer}
+  .viewToggle button.on{background:var(--accent);color:#04121f;border-color:var(--accent)}
   #netBanner{position:absolute;left:0;right:0;top:0;padding:9px 16px;text-align:center;
     font-weight:700;font-size:13px;letter-spacing:.02em;color:#04121f;
     background:var(--accent);transform:translateY(-100%);transition:transform .3s;z-index:5}
@@ -86,9 +112,12 @@
   /* timeline */
   .tl-controls{display:flex;gap:10px;align-items:center;margin-bottom:12px}
   button.play{background:var(--accent);color:#04121f;border:0;border-radius:7px;padding:7px 14px;
-    font-weight:700;cursor:pointer}
+    font-weight:700;cursor:pointer;transition:filter .15s,transform .1s}
+  button.play:hover{filter:brightness(1.08)}
+  button.play:active{transform:scale(.97)}
   button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);
-    border-radius:7px;padding:7px 12px;cursor:pointer}
+    border-radius:7px;padding:7px 12px;cursor:pointer;transition:border-color .15s,color .15s}
+  button.ghost:hover{border-color:var(--accent);color:var(--ink)}
   .tl{position:relative;margin-left:8px;border-left:2px solid var(--line);padding-left:16px}
   .tl .ev{position:relative;padding:8px 0;opacity:.35;transition:opacity .25s}
   .tl .ev.on{opacity:1}
@@ -110,19 +139,30 @@
   #trigger .sub{margin-bottom:12px}
   .mrow{display:flex;gap:12px;flex-wrap:wrap}
   .method-btn{flex:1 1 300px;text-align:left;background:var(--panel2);border:1px solid var(--line);
-    border-radius:9px;padding:12px 14px;cursor:pointer;color:var(--ink)}
+    border-radius:9px;padding:12px 14px;cursor:pointer;color:var(--ink);
+    transition:border-color .15s,box-shadow .15s,transform .1s}
+  .method-btn:hover{transform:translateY(-1px)}
   .method-btn:hover,.method-btn.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
   .method-btn b{display:block;font-size:13px;margin-bottom:3px}
   .method-btn .w{color:var(--accent);font-size:11.5px;font-family:monospace}
   .method-btn .m{color:var(--muted);font-size:12px;margin-top:5px}
   .cmds{margin-top:12px}
   .cmds pre{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px;
-    margin:6px 0;font:12px/1.55 ui-monospace,Menlo,Consolas,monospace;color:#cbd5e1;overflow-x:auto}
+    margin:6px 0;font:12px/1.55 ui-monospace,Menlo,Consolas,monospace;color:var(--ink);overflow-x:auto}
   .cmds .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .cmds button{background:var(--accent);color:#04121f;border:0;border-radius:6px;
-    padding:6px 12px;font-weight:700;cursor:pointer;font-size:12px}
+    padding:6px 12px;font-weight:700;cursor:pointer;font-size:12px;transition:filter .15s}
+  .cmds button:hover{filter:brightness(1.08)}
   .cmds button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
   .cmds .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .term{background:#05080c;border:1px solid var(--line);border-radius:7px;padding:10px 12px;
+    margin:6px 0;font:12px/1.65 ui-monospace,Menlo,Consolas,monospace;color:#8ee08e;
+    white-space:pre-wrap;word-break:break-all;max-height:280px;overflow-y:auto}
+  .term .prompt{color:#3ea6ff}
+  .term .bang{color:var(--muted);font-style:italic}
+  .term .cur{animation:blink 1s step-end infinite}
+  @keyframes blink{50%{opacity:0}}
+  .cmds button.skip{background:transparent;color:var(--muted);border:1px solid var(--line)}
 
   .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
   .kv b{color:var(--muted);font-weight:500}
@@ -143,6 +183,10 @@
       <div class="pill" id="overallPill">–</div>
       <div class="sub" id="countTxt"></div>
     </div>
+  </div>
+  <div class="themeToggle">
+    <button id="themeDarkBtn" class="on" type="button">Dark</button>
+    <button id="themeLightBtn" type="button">Light</button>
   </div>
 </header>
 
@@ -165,17 +209,25 @@
 
   <div class="panel full" id="topoPanel">
     <h2>Topology &nbsp;·&nbsp; <span id="topoState">steady state</span>
-        &nbsp;<span class="sub" style="text-transform:none;letter-spacing:0">— click a device for CLI / Web UI</span></h2>
+        &nbsp;<span class="sub" style="text-transform:none;letter-spacing:0">— click a device for CLI / Web UI</span>
+        <span class="viewToggle">
+          <button id="view2dBtn" class="on" type="button">2D</button>
+          <button id="view3dBtn" type="button">3D</button>
+          <button id="fit3dBtn" type="button" hidden>&#10021; Fit view</button>
+        </span></h2>
     <div class="netbox">
       <div id="netBanner"></div>
       <div id="net"></div>
+      <div id="net3d"></div>
     </div>
     <div class="legend">
       <span><i style="border-color:var(--accent)"></i>CAPWAP (active)</span>
       <span><i style="border-color:var(--standby);border-top-style:dashed"></i>configured secondary</span>
       <span><i style="border-color:var(--pass)"></i>mobility tunnel</span>
       <span><i style="border-color:var(--fail)"></i>down</span>
-      <span><i style="border-color:var(--muted)"></i>uplink / access / RADIUS</span>
+      <span><i style="border-color:var(--muted)"></i>Po10 / Po11 uplink &middot; access &middot; RADIUS</span>
+      <span><i style="border-color:#f85149;border-top-style:dashed"></i>Guest (Vlan54) &rarr; firewall &rarr; DMZ</span>
+      <span><i style="border-color:#3ea6ff;border-top-style:dashed"></i>site boundary (DC / branch)</span>
     </div>
   </div>
 
@@ -201,8 +253,31 @@
 
 <script>
 const RESULT = {{ result | tojson }};
+
+/* ---------- light / dark theme ---------- */
+(function(){
+  const KEY='c9800dr-theme';
+  const html=document.documentElement;
+  let saved='dark';
+  try{ saved = localStorage.getItem(KEY) || 'dark'; }catch(e){}
+  function apply(theme){
+    html.setAttribute('data-theme', theme);
+    document.getElementById('themeDarkBtn').classList.toggle('on', theme==='dark');
+    document.getElementById('themeLightBtn').classList.toggle('on', theme==='light');
+    try{ localStorage.setItem(KEY, theme); }catch(e){}
+    document.dispatchEvent(new CustomEvent('themechange', {detail:theme}));
+  }
+  apply(saved);
+  document.getElementById('themeDarkBtn').onclick = ()=>apply('dark');
+  document.getElementById('themeLightBtn').onclick = ()=>apply('light');
+})();
+
 const COLORS = getComputedStyle(document.documentElement);
 const c = n => COLORS.getPropertyValue(n).trim();
+function fmtRTO(s){
+  if(s==null) return '';
+  return s>=60 ? `${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s (${s}s)` : `${s}s`;
+}
 
 /* ---------- score header (steady-state readiness) ---------- */
 (function(){
@@ -217,7 +292,7 @@ const c = n => COLORS.getPropertyValue(n).trim();
   document.getElementById('countTxt').textContent =
     `${r.counts.pass} pass · ${r.counts.warn} warn · ${r.counts.fail} fail`;
   document.getElementById('rtoTxt').textContent = RESULT.rpo_rto.modelled_rto_seconds
-    ? 'modelled RTO ≈ ' + RESULT.rpo_rto.modelled_rto_seconds + 's' : '';
+    ? 'modelled RTO ≈ ' + fmtRTO(RESULT.rpo_rto.modelled_rto_seconds) : '';
 })();
 
 /* ---------- checks ---------- */
@@ -260,7 +335,7 @@ const c = n => COLORS.getPropertyValue(n).trim();
 
 /* ---------- topology ---------- */
 const SSH_USER = {{ ssh_user | tojson }};
-const GSIZE = {controller:34, core_switch:28, access_switch:22, ap:24, aaa:26};
+const GSIZE = {controller:34, core_switch:28, access_switch:22, ap:24, aaa:26, firewall:28, dmz:30};
 const netBanner = document.getElementById('netBanner');
 
 function edgeStyle(e){
@@ -269,6 +344,7 @@ function edgeStyle(e){
   if(e.status==='standby')     return {color:c('--standby'),dashes:[4,4],width:1};
   if(e.type==='mobility')      return {color:c('--pass'),width:2};
   if(e.type==='capwap')        return {color:c('--accent'),width:2};
+  if(e.type==='guest_dmz')     return {color:'#f85149',dashes:[3,3],width:1.5};
   return {color:c('--line'),width:1};
 }
 
@@ -298,42 +374,52 @@ const TOPO = {
   after:      RESULT.after.topology,
 };
 
-let network, curState=null, dsNodes, dsEdges;
+let network, curState=null, dsNodes, dsEdges, SITE_OF={};
 function drawTopo(which){
   const topo = TOPO[which] || RESULT.before.topology;
+  SITE_OF = {};
+  topo.nodes.forEach(n=>{ const s=n.site||n.ap_site; if(s) SITE_OF[n.id]=s; });
   const nodes = topo.nodes.map(n=>{
     const dead = (n.type==='controller' && n.reachable===false);
     const mig = which==='transition' && (topo.migrating||[]).includes(n.id);
+    const sub = dead ? 'UNREACHABLE' : (n.platform || n.model || '');
     const node = {
-      id:n.id, label:n.label,
+      id:n.id, label: sub ? `${n.label}\n${sub}` : n.label,
+      x:n.x, y:n.y,
       shape: n.icon ? 'image' : 'dot',
       image: n.icon || undefined,
       size: (GSIZE[n.type] || 20) * (mig?1.25:1),
-      font:{color:'#c9d6e2', size:12, strokeWidth:3, strokeColor:'#0f1720'},
+      font:{color:c('--ink'), size:12, strokeWidth:5, strokeColor:c('--bg')},
       opacity: dead ? 0.3 : 1,
       borderWidth: mig?3:0, color: mig?{border:c('--warn')}:undefined,
       _ip: n.ip || n.mgmt_ip || null, _type:n.type,
       _platform: n.platform || n.model || null,
-      title:Object.entries(n).filter(([k])=>!['id','label','type','icon','ip','mgmt_ip'].includes(k))
+      title:Object.entries(n).filter(([k])=>!['id','label','type','icon','ip','mgmt_ip','x','y'].includes(k))
               .map(([k,v])=>`${k}: ${v}`).join('\n'),
     };
-    if(dead){ node.color={background:'#3d2020',border:c('--fail')}; node.borderWidth=2; }
+    if(dead){
+      node.color={background:'#3d2020',border:c('--fail')}; node.borderWidth=2;
+      node.font={...node.font, color:'#f3d7d7', strokeColor:'#2a0c0c'};
+    }
     return node;
   });
   const edges = topo.edges.map((e,i)=>({
     id:i, from:e.source, to:e.target, label:e.label||'',
     arrows: e.type==='capwap_standby'?'':'to',
-    ...edgeStyle(e), font:{size:9,color:'#7d8ea3',strokeWidth:0}
+    ...edgeStyle(e), font:{size:10,color:c('--muted'),strokeWidth:5,strokeColor:c('--bg'),align:'middle'}
   }));
   if(!network){
     dsNodes=new vis.DataSet(nodes); dsEdges=new vis.DataSet(edges);
     network=new vis.Network(document.getElementById('net'),
       {nodes:dsNodes,edges:dsEdges},{
-        physics:{stabilization:true,barnesHut:{springLength:150,avoidOverlap:0.6}},
-        interaction:{hover:true,tooltipDelay:120},
+        physics:{enabled:false},
+        layout:{randomSeed:1},
+        interaction:{hover:true,tooltipDelay:120,dragNodes:true,zoomView:true},
         nodes:{borderWidth:0},
       });
     network.on('click', onNetClick);
+    network.on('beforeDrawing', drawSiteBoxes);
+    network.fit({animation:false});
   } else {
     const keep=new Set(nodes.map(n=>n.id));
     dsNodes.remove(dsNodes.getIds().filter(id=>!keep.has(id)));
@@ -344,6 +430,129 @@ function drawTopo(which){
         which==='before' ? 'steady state'
       : which==='transition' ? 'FAILING OVER — APs discovering WLC-SEC'
       : 'recovered on WLC-SEC (LAB-DC1 down)';
+  if(view3d) drawTopo3D(which);
+}
+
+/* ---------- 3D topology (toggle view; same TOPO data + click popup) ---------- */
+let view3d = false, graph3d = null;
+const SITE_Z = {'LAB-DC1':-140,'LAB-DC2':140,'BRANCH-01':-320,'BRANCH-02':320,'SHARED':0};
+const SITE3D_COLOR = {'LAB-DC1':'#3ea6ff', 'LAB-DC2':'#3fb950', 'SHARED':'#d29922',
+                       'BRANCH-01':'#f85149', 'BRANCH-02':'#a371f7'};
+function ensureGraph3D(){
+  if(graph3d) return;
+  graph3d = ForceGraph3D()(document.getElementById('net3d'))
+    .backgroundColor('#00000000')
+    .nodeId('id')
+    .nodeVal(n => (GSIZE[n._type]||20)/6)
+    .nodeColor(n => n._dead ? '#c0392b' : (n._mig ? c('--warn') : (NODE3D_COLOR[n._type] || '#6e7681')))
+    .nodeOpacity(0.95)
+    .nodeResolution(16)
+    .linkColor(l => l._color)
+    .linkWidth(l => l._width)
+    .linkOpacity(0.75)
+    .linkLabel(l => l.label || '')
+    .linkDirectionalArrowLength(l => l._arrow ? 4 : 0)
+    .linkDirectionalArrowRelPos(1)
+    .nodeThreeObjectExtend(true)
+    .nodeThreeObject(n => {
+      const sub = n._dead ? 'UNREACHABLE' : (n._platform || '');
+      const txt = new SpriteText(sub ? `${n.label}\n${sub}` : n.label);
+      txt.color = n._dead ? '#ffb4b4' : c('--ink');
+      txt.backgroundColor = c('--panel') + 'cc';
+      txt.padding = 2;
+      txt.borderRadius = 3;
+      txt.textHeight = 3.2;
+      txt.position.y = 7;
+      return txt;
+    })
+    .onNodeClick((n, ev) => openDevPopup(n, ev.clientX, ev.clientY))
+    .showNavInfo(false)
+    .cooldownTicks(0);
+  const scene = graph3d.scene();
+  scene.children.filter(o=>o.isAmbientLight).forEach(o=>o.intensity=1.1);
+  scene.children.filter(o=>o.isDirectionalLight).forEach(o=>o.intensity=0.65);
+}
+const NODE3D_COLOR = {controller:'#3ea6ff', core_switch:'#a371f7', access_switch:'#8b949e',
+                       ap:'#3fb950', aaa:'#d29922', firewall:'#f85149', dmz:'#d29922'};
+function edgeColor3D(e){
+  if(e.status==='discovering') return c('--warn');
+  if(e.status==='down')        return c('--fail');
+  if(e.status==='standby')     return c('--standby');
+  if(e.type==='mobility')      return c('--pass');
+  if(e.type==='capwap')        return c('--accent');
+  if(e.type==='guest_dmz')     return '#f85149';
+  return c('--line');
+}
+function drawTopo3D(which){
+  ensureGraph3D();
+  const topo = TOPO[which] || RESULT.before.topology;
+  const migrating = new Set(topo.migrating||[]);
+  const nodes = topo.nodes.map(n=>{
+    const dead = (n.type==='controller' && n.reachable===false);
+    const site = n.site || n.ap_site || 'SHARED';
+    return {
+      id:n.id, label: n.label, _type:n.type, _dead:dead, _mig:migrating.has(n.id),
+      _ip:n.ip||n.mgmt_ip||null, _platform:n.platform||n.model||null, _site:site,
+      fx: (n.x||0)/4, fy: -(SITE_Z[site]||0)/4, fz: (n.y||0)/4,
+    };
+  });
+  const links = topo.edges.map(e=>({
+    source:e.source, target:e.target, label:e.label||'', status:e.status,
+    _color:edgeColor3D(e), _width:(e.status==='down'?1:2), _arrow:e.type!=='capwap_standby',
+  }));
+  graph3d.graphData({nodes, links});
+}
+let fitted3d = false;
+function setView(v){
+  view3d = (v==='3d');
+  document.getElementById('net').style.display  = view3d ? 'none' : 'block';
+  document.getElementById('net3d').style.display = view3d ? 'block' : 'none';
+  document.getElementById('view2dBtn').classList.toggle('on', !view3d);
+  document.getElementById('view3dBtn').classList.toggle('on', view3d);
+  document.getElementById('fit3dBtn').hidden = !view3d;
+  if(view3d){
+    drawTopo3D(curState || 'before');
+    if(!fitted3d){ fitted3d = true; setTimeout(()=>graph3d.zoomToFit(400, 50), 50); }
+  }
+}
+document.getElementById('view2dBtn').onclick = ()=> setView('2d');
+document.getElementById('view3dBtn').onclick = ()=> setView('3d');
+document.getElementById('fit3dBtn').onclick = ()=> graph3d && graph3d.zoomToFit(600, 50);
+document.addEventListener('themechange', ()=>{
+  if(network) drawTopo(curState || 'before');
+  if(graph3d) drawTopo3D(curState || 'before');
+});
+function drawSiteBoxes(ctx){
+  const groups = {};
+  Object.entries(SITE_OF).forEach(([id,site])=>{ (groups[site]=groups[site]||[]).push(id); });
+  const SITE_COLOR = {'LAB-DC1':'62,166,255', 'LAB-DC2':'63,185,80', 'SHARED':'210,153,34',
+                       'BRANCH-01':'248,81,73', 'BRANCH-02':'163,113,247'};
+  Object.entries(groups).forEach(([site,ids])=>{
+    const pos = network.getPositions(ids);
+    const pts = ids.map(id=>pos[id]).filter(Boolean);
+    if(pts.length < 1) return;
+    const pad = 58;
+    const minX=Math.min(...pts.map(p=>p.x))-pad, maxX=Math.max(...pts.map(p=>p.x))+pad;
+    const minY=Math.min(...pts.map(p=>p.y))-pad, maxY=Math.max(...pts.map(p=>p.y))+pad;
+    const rgb = SITE_COLOR[site] || '147,158,171';
+    ctx.save();
+    ctx.strokeStyle = `rgba(${rgb},.45)`;
+    ctx.fillStyle = `rgba(${rgb},.05)`;
+    ctx.setLineDash([7,5]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(minX,minY,maxX-minX,maxY-minY,10)
+                                    : ctx.rect(minX,minY,maxX-minX,maxY-minY);
+    ctx.fill(); ctx.stroke();
+    ctx.setLineDash([]);
+    const isLight = document.documentElement.getAttribute('data-theme')==='light';
+    ctx.font = 'bold 13px -apple-system,Segoe UI,Arial';
+    ctx.textBaseline = 'bottom';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = isLight ? 'rgba(255,255,255,.9)' : 'rgba(10,15,21,.9)';
+    ctx.strokeText(site, minX+8, minY-6);
+    ctx.fillStyle = `rgba(${rgb},1)`;
+    ctx.fillText(site, minX+8, minY-6);
+    ctx.restore();
+  });
 }
 function showBanner(text, cls){
   netBanner.className = 'show ' + (cls||'');
@@ -359,9 +568,7 @@ let popNode = null;
 const LIVE = false;   // demo build -- device popups open the simulated login page
 function esc2(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 
-function onNetClick(params){
-  if(!params.nodes.length){ pop.style.display='none'; return; }
-  const n = dsNodes.get(params.nodes[0]);
+function openDevPopup(n, clientX, clientY){
   popNode = n;
   document.getElementById('dpName').textContent = n.label;
   document.getElementById('dpIp').textContent =
@@ -369,11 +576,16 @@ function onNetClick(params){
   dpOut.hidden = true; dpOut.innerHTML='';
   const noGui = (n._type==='ap' || !n._ip);
   document.getElementById('dpGui').classList.toggle('dis', noGui && !LIVE);
+  pop.style.left = Math.min(clientX+12, window.innerWidth-280) + 'px';
+  pop.style.top  = Math.min(clientY+12, window.innerHeight-260) + 'px';
+  pop.style.display = 'block';
+}
+function onNetClick(params){
+  if(!params.nodes.length){ pop.style.display='none'; return; }
+  const n = dsNodes.get(params.nodes[0]);
   const p = params.pointer.DOM;
   const box = document.getElementById('net').getBoundingClientRect();
-  pop.style.left = Math.min(box.left+p.x+12, window.innerWidth-280) + 'px';
-  pop.style.top  = Math.min(box.top+p.y+12, window.innerHeight-260) + 'px';
-  pop.style.display = 'block';
+  openDevPopup(n, box.left+p.x, box.top+p.y);
 }
 function show(html){ dpOut.hidden=false; dpOut.innerHTML = html; }
 
@@ -430,6 +642,7 @@ document.addEventListener('click', ev=>{
   const topoPanel=document.getElementById('topoPanel');
 
   const PRE=RESULT.pre||[], GATE=RESULT.gate||{}, METHODS=RESULT.methods||{};
+  const LOGIN=RESULT.login||null;
   const RTOMAX=RESULT.rpo_rto.modelled_rto_seconds;
   let steps=[], rows=[], timer=null, idx=-1, method=null, atEnd=false;
 
@@ -497,23 +710,59 @@ document.addEventListener('click', ev=>{
       <div class="mrow">${Object.entries(METHODS).map(([k,m])=>`
         <button class="method-btn" data-k="${k}">
           <b>${esc(m.label)}</b><span class="w">${esc(m.where)}</span>
-          <div class="m">${esc(m.summary)} &nbsp;·&nbsp; RTO ≈ ${m.rto_s}s</div>
+          <div class="m">${esc(m.summary)} &nbsp;·&nbsp; RTO ≈ ${fmtRTO(m.rto_s)}</div>
         </button>`).join('')}</div>
       <div id="tcmds"></div>`;
     trigger.querySelectorAll('.method-btn').forEach(b=>b.onclick=()=>chooseMethod(b.dataset.k,b));
   }
+  function termLine(text){
+    if(text.startsWith('!')) return `<span class="bang">${esc(text)}</span>`;
+    if(text.startsWith('ssh ')) return `<span class="prompt">$</span> ${esc(text)}`;
+    return esc(text);
+  }
+  function playTerminal(pre, lines, onDone){
+    let i=0, stopped=false;
+    pre.innerHTML='';
+    pre._skip = ()=>{ stopped=true; pre.innerHTML = lines.map(termLine).join('\n'); onDone(); };
+    function step(){
+      if(stopped) return;
+      if(i>=lines.length){ pre.innerHTML += (i>0?'\n':'')+'<span class="cur">&#9608;</span>'; onDone(); return; }
+      pre.innerHTML += (i>0?'\n':'') + termLine(lines[i]);
+      pre.scrollTop = pre.scrollHeight;
+      const delay = lines[i].startsWith('!') ? 200 : lines[i].startsWith('ssh ') ? 550 : 420;
+      i++;
+      setTimeout(step, delay);
+    }
+    step();
+  }
   function chooseMethod(k,btn){
     method=k; const m=METHODS[k];
     trigger.querySelectorAll('.method-btn').forEach(x=>x.classList.toggle('sel',x===btn));
+    const loginLines = LOGIN ? [
+      `ssh ${LOGIN.username}@DC1-CORE-SW1`,
+      `Username: ${LOGIN.username}`,
+      `Password: ${'*'.repeat(LOGIN.password.length)}`,
+      `! authenticated`,
+    ] : [];
     document.getElementById('tcmds').innerHTML =
-      cmdBlock('&#9312; shutdown — this triggers the failover', m.commands) +
-      `<div class="cmds"><div class="row" style="margin-top:12px">
+      `<div class="cmds"><div class="lbl">&#9312; simulated CLI session — this triggers the failover</div>
+       <div class="row">
+         <button data-copy="${encodeURIComponent(m.commands.join('\n'))}">Copy script</button>
+         <button class="skip" id="skipBtn" type="button">Skip typing</button>
+         <span class="sub">simulated terminal — demo only, no live device reached</span>
+       </div>
+       <pre class="term" id="termOut"></pre></div>
+       <div class="cmds" id="termActions" style="display:none"><div class="row">
          <button id="contBtn">&#9654; Continue — outage triggered</button>
          <span class="sub">${LIVE?'click after the shutdown is applied and WLC-PRI is confirmed down'
-                                 :'demo: click to continue the simulation'}</span>
+                                 :'demo: session complete — click to continue the simulation'}</span>
        </div></div>`;
     wireCopy(trigger);
-    rtoTxt.textContent='modelled RTO ≈ '+m.rto_s+'s';
+    rtoTxt.textContent='modelled RTO ≈ '+fmtRTO(m.rto_s);
+    const termOut = document.getElementById('termOut');
+    const termActions = document.getElementById('termActions');
+    document.getElementById('skipBtn').onclick = ()=> termOut._skip && termOut._skip();
+    playTerminal(termOut, [...loginLines, ...m.commands], ()=>{ termActions.style.display='block'; });
     document.getElementById('contBtn').onclick=()=>startMethod(k);
   }
   function startMethod(k){
@@ -535,7 +784,7 @@ document.addEventListener('click', ev=>{
   function doReset(){
     pause(); idx=-1; method=null; atEnd=false;
     phaseTxt.textContent=''; playBtn.innerHTML='&#9654; Play failover';
-    rtoTxt.textContent = RTOMAX ? 'modelled RTO ≈ up to '+RTOMAX+'s' : '';
+    rtoTxt.textContent = RTOMAX ? 'modelled RTO ≈ up to '+fmtRTO(RTOMAX) : '';
     trigger.hidden=true; trigger.innerHTML='';
     hideBanner(); topoPanel.classList.remove('hot');
     buildInitial(); drawTopo('before'); if(network) network.fit({animation:true});

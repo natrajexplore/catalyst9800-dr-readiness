@@ -85,19 +85,29 @@ exec:
       Vlan1                  unassigned      YES NVRAM  administratively down  down
       Vlan100                192.168.100.10  YES NVRAM  up                    up
       Vlan200                192.168.200.10  YES NVRAM  up                    up
+      Vlan51                 192.168.51.10   YES NVRAM  up                    up
+      Vlan52                 192.168.52.10   YES NVRAM  up                    up
+      Vlan53                 192.168.53.10   YES NVRAM  up                    up
+      Vlan54                 192.168.54.10   YES NVRAM  up                    up
 
     "show wireless interface summary": |
       Interface Name    Interface Type   VLAN ID   IP Address        IP Netmask         MAC Address
       ----------------------------------------------------------------------------------------------
       Vlan100           Management       100       192.168.100.10    255.255.255.0      001a.2b3c.4d10
-      Vlan200           WLC              200       192.168.200.10    255.255.255.0      001a.2b3c.4d20
+      Vlan200           AP_MGMT          200       192.168.200.10    255.255.255.0      001a.2b3c.4d20
+      Vlan51            CORP_EMP         51        192.168.51.10     255.255.255.0      001a.2b3c.4d33
+      Vlan52            Robo_IOT         52        192.168.52.10     255.255.255.0      001a.2b3c.4d34
+      Vlan53            ClientVisit      53        192.168.53.10     255.255.255.0      001a.2b3c.4d35
+      Vlan54            Guest            54        192.168.54.10     255.255.255.0      001a.2b3c.4d36
 
     "show wlan summary": |
-      Number of WLANs: 2
+      Number of WLANs: 4
       ID   Profile Name                     SSID                             Status Security
       ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-      10   CORP-WIFI                        CORP-WIFI                        UP     [WPA2][WPA3][802.1x][AES]
-      20   CORP-VOICE                       CORP-VOICE                       UP     [WPA2][802.1x][AES]
+      51   CORP_EMP                         CORP_EMP                         UP     [WPA2][WPA3][802.1x][AES]
+      52   Robo_IOT                         Robo_IOT                         UP     [WPA2][PSK][AES]
+      53   ClientVisit                      ClientVisit                      UP     [WPA2][802.1x][AES]
+      54   Guest                            Guest                            UP     [open],Web-Auth,DMZ-anchor
 
     "show ap summary": |
       Number of APs: 4
@@ -186,7 +196,7 @@ exec:
       Entry address(es):
         IP address: 192.168.100.1
       Platform: cisco C9500-24Y4C,  Capabilities: Router Switch IGMP
-      Interface: GigabitEthernet1,  Port ID (outgoing port): TenGigabitEthernet1/0/1
+      Interface: Port-channel10,  Port ID (outgoing port): Port-channel10
       Holdtime : 154 sec
       Version :
       Cisco IOS Software [IOSXE], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.12.3
@@ -197,7 +207,7 @@ exec:
       Entry address(es):
         IP address: 192.168.100.2
       Platform: cisco C9500-24Y4C,  Capabilities: Router Switch IGMP
-      Interface: GigabitEthernet2,  Port ID (outgoing port): TenGigabitEthernet1/0/1
+      Interface: Port-channel10,  Port ID (outgoing port): Port-channel10
       Holdtime : 161 sec
       Version :
       Cisco IOS Software [IOSXE], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.12.3

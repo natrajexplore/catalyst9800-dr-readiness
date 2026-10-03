@@ -82,28 +82,42 @@ exec:
       Vlan1                  unassigned      YES NVRAM  administratively down  down
       Vlan100                192.168.100.20  YES NVRAM  up                    up
       Vlan200                192.168.200.20  YES NVRAM  up                    up
+      Vlan51                 192.168.51.20   YES NVRAM  up                    up
+      Vlan52                 192.168.52.20   YES NVRAM  up                    up
+      Vlan53                 192.168.53.20   YES NVRAM  up                    up
+      Vlan54                 192.168.54.20   YES NVRAM  up                    up
 
     "show wireless interface summary": |
       Interface Name    Interface Type   VLAN ID   IP Address        IP Netmask         MAC Address
       ----------------------------------------------------------------------------------------------
       Vlan100           Management       100       192.168.100.20    255.255.255.0      001a.2b3c.4d20
-      Vlan200           WLC              200       192.168.200.20    255.255.255.0      001a.2b3c.4d21
+      Vlan200           AP_MGMT          200       192.168.200.20    255.255.255.0      001a.2b3c.4d21
+      Vlan51            CORP_EMP         51        192.168.51.20     255.255.255.0      001a.2b3c.4d37
+      Vlan52            Robo_IOT         52        192.168.52.20     255.255.255.0      001a.2b3c.4d38
+      Vlan53            ClientVisit      53        192.168.53.20     255.255.255.0      001a.2b3c.4d39
+      Vlan54            Guest            54        192.168.54.20     255.255.255.0      001a.2b3c.4d3a
 
     "show wlan summary": |
-      Number of WLANs: 2
+      Number of WLANs: 4
       ID   Profile Name                     SSID                             Status Security
       ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-      10   CORP-WIFI                        CORP-WIFI                        UP     [WPA2][WPA3][802.1x][AES]
-      20   CORP-VOICE                       CORP-VOICE                       UP     [WPA2][802.1x][AES]
+      51   CORP_EMP                         CORP_EMP                         UP     [WPA2][WPA3][802.1x][AES]
+      52   Robo_IOT                         Robo_IOT                         UP     [WPA2][PSK][AES]
+      53   ClientVisit                      ClientVisit                      UP     [WPA2][802.1x][AES]
+      54   Guest                            Guest                            UP     [open],Web-Auth,DMZ-anchor
 
     "show ap summary": |
-      Number of APs: 4
+      Number of APs: 8
       AP Name                            Slots    AP Model  Ethernet MAC    Radio MAC       Location                          Country     IP Address                                 State
       -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
       AP-DC1-01                          2        9130AXI   00aa.bb01.0001  00aa.bb01.1001  LAB-DC1                           US          192.168.100.101                           Registered
       AP-DC1-02                          2        9130AXI   00aa.bb02.0002  00aa.bb02.1002  LAB-DC1                           US          192.168.100.102                           Registered
       AP-DC2-01                          2        9130AXI   00aa.bb03.0003  00aa.bb03.1003  LAB-DC2                           US          192.168.100.103                           Registered
       AP-DC2-02                          2        9130AXI   00aa.bb04.0004  00aa.bb04.1004  LAB-DC2                           US          192.168.100.104                           Registered
+      AP-BR1-01                          2        9120AXI   00aa.bb05.0005  00aa.bb05.1005  BRANCH-01                         US          192.168.61.101                             Registered
+      AP-BR1-02                          2        9120AXI   00aa.bb06.0006  00aa.bb06.1006  BRANCH-01                         US          192.168.61.102                             Registered
+      AP-BR2-01                          2        9120AXI   00aa.bb07.0007  00aa.bb07.1007  BRANCH-02                         US          192.168.62.101                             Registered
+      AP-BR2-02                          2        9120AXI   00aa.bb08.0008  00aa.bb08.1008  BRANCH-02                         US          192.168.62.102                             Registered
 
     "show ap config general": |
       Cisco AP Name : AP-DC1-01
@@ -128,17 +142,23 @@ exec:
       AP-DC1-02                         WLC-PRI           192.168.100.10    WLC-SEC           192.168.100.20
       AP-DC2-01                         WLC-PRI           192.168.100.10    WLC-SEC           192.168.100.20
       AP-DC2-02                         WLC-PRI           192.168.100.10    WLC-SEC           192.168.100.20
+      AP-BR1-01                         WLC-SEC           192.168.100.20    WLC-PRI           192.168.100.10
+      AP-BR1-02                         WLC-SEC           192.168.100.20    WLC-PRI           192.168.100.10
+      AP-BR2-01                         WLC-SEC           192.168.100.20    WLC-PRI           192.168.100.10
+      AP-BR2-02                         WLC-SEC           192.168.100.20    WLC-PRI           192.168.100.10
 
     "show wireless client summary": |
-      Number of Clients: 6
+      Number of Clients: 8
       MAC Address    AP Name                                        Type ID   State             Protocol Method     Role
       -------------------------------------------------------------------------------------------------------------------------
-      1000.0001.0001 AP-DC1-01                                     WLAN 10   Run               11ax     Dot1x      Local
-      1000.0001.0002 AP-DC1-01                                     WLAN 10   Run               11ax     Dot1x      Local
-      1000.0001.0003 AP-DC1-02                                     WLAN 10   Run               11ac     Dot1x      Local
-      1000.0001.0004 AP-DC1-02                                     WLAN 20   Run               11ac     Dot1x      Local
-      1000.0001.0005 AP-DC2-01                                     WLAN 10   Run               11ax     Dot1x      Local
-      1000.0001.0006 AP-DC2-02                                     WLAN 20   Run               11ac     Dot1x      Local
+      1000.0001.0001 AP-DC1-01                                     WLAN 51   Run               11ax     Dot1x      Local
+      1000.0001.0002 AP-DC1-01                                     WLAN 51   Run               11ax     Dot1x      Local
+      1000.0001.0003 AP-DC1-02                                     WLAN 51   Run               11ac     Dot1x      Local
+      1000.0001.0004 AP-DC1-02                                     WLAN 52   Run               11ac     MAB        Local
+      1000.0001.0005 AP-DC2-01                                     WLAN 51   Run               11ax     Dot1x      Local
+      1000.0001.0006 AP-DC2-02                                     WLAN 53   Run               11ac     Dot1x      Local
+      2000.0005.0001 AP-BR1-01                                     WLAN 51   Run               11ac     Dot1x      Local
+      2000.0007.0001 AP-BR2-01                                     WLAN 54   Run               11n(2.4) Webauth    Local
       Number of Excluded Clients: 0
 
     "show wireless mobility summary": |
@@ -160,22 +180,30 @@ exec:
       192.168.100.10                            192.168.100.10                             001a.2b3c.4d10      LAB-DR-GROUP                     0.0.0.0           ::                                          Down                         N/A
 
     "show wireless stats ap join summary": |
-      Number of APs: 4
+      Number of APs: 8
       Base MAC        Ethernet MAC    AP Name                           IP Address                                Status      Last Failure Phase    Last Disconnect Reason
       ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
       00aa.bb01.1001  00aa.bb01.0001  AP-DC1-01                         192.168.100.101                           Joined      Join                  Controller is not reachable
       00aa.bb02.1002  00aa.bb02.0002  AP-DC1-02                         192.168.100.102                           Joined      Join                  Controller is not reachable
       00aa.bb03.1003  00aa.bb03.0003  AP-DC2-01                         192.168.100.103                           Joined      Join                  Controller is not reachable
       00aa.bb04.1004  00aa.bb04.0004  AP-DC2-02                         192.168.100.104                           Joined      Join                  Controller is not reachable
+      00aa.bb05.1005  00aa.bb05.0005  AP-BR1-01                         192.168.61.101                            Joined      Not applicable        Not applicable
+      00aa.bb06.1006  00aa.bb06.0006  AP-BR1-02                         192.168.61.102                            Joined      Not applicable        Not applicable
+      00aa.bb07.1007  00aa.bb07.0007  AP-BR2-01                         192.168.62.101                            Joined      Not applicable        Not applicable
+      00aa.bb08.1008  00aa.bb08.0008  AP-BR2-02                         192.168.62.102                            Joined      Not applicable        Not applicable
 
     "show ap cdp neighbor": |
-      Number of neighbors: 4
+      Number of neighbors: 8
       AP Name                          AP IP                                     Neighbor Name      Neighbor Port
       -------------------------------------------------------------------------------------------------------------
       AP-DC1-01                        192.168.100.101                           DC1-ACCESS-SW1     GigabitEthernet1/0/1
       AP-DC1-02                        192.168.100.102                           DC1-ACCESS-SW1     GigabitEthernet1/0/2
       AP-DC2-01                        192.168.100.103                           DC2-ACCESS-SW1     GigabitEthernet1/0/1
       AP-DC2-02                        192.168.100.104                           DC2-ACCESS-SW1     GigabitEthernet1/0/2
+      AP-BR1-01                        192.168.61.101                            BRANCH-01-SW1      GigabitEthernet1/0/1
+      AP-BR1-02                        192.168.61.102                            BRANCH-01-SW1      GigabitEthernet1/0/2
+      AP-BR2-01                        192.168.62.101                            BRANCH-02-SW1      GigabitEthernet1/0/1
+      AP-BR2-02                        192.168.62.102                            BRANCH-02-SW1      GigabitEthernet1/0/2
 
     "show cdp neighbors detail": |
       -------------------------
@@ -183,7 +211,7 @@ exec:
       Entry address(es):
         IP address: 192.168.100.3
       Platform: cisco C9500-24Y4C,  Capabilities: Router Switch IGMP
-      Interface: GigabitEthernet1,  Port ID (outgoing port): TenGigabitEthernet1/0/1
+      Interface: Port-channel11,  Port ID (outgoing port): Port-channel11
       Holdtime : 149 sec
       Version :
       Cisco IOS Software [IOSXE], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.12.3
@@ -194,7 +222,7 @@ exec:
       Entry address(es):
         IP address: 192.168.100.4
       Platform: cisco C9500-24Y4C,  Capabilities: Router Switch IGMP
-      Interface: GigabitEthernet2,  Port ID (outgoing port): TenGigabitEthernet1/0/1
+      Interface: Port-channel11,  Port ID (outgoing port): Port-channel11
       Holdtime : 158 sec
       Version :
       Cisco IOS Software [IOSXE], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.12.3

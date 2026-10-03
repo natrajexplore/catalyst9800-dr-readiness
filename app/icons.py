@@ -16,6 +16,8 @@ _COL = {
     "access_switch": "#6e7681",
     "ap": "#2ea043",
     "aaa": "#bb8009",
+    "firewall": "#f85149",
+    "dmz": "#d29922",
 }
 
 
@@ -66,12 +68,28 @@ _AAA = _svg(
     '<path d="M24 32l6 6 12-14"/>',
     _COL["aaa"])
 
+# Firewall: brick wall
+_FIREWALL = _svg(
+    '<rect x="8" y="14" width="48" height="36" rx="2" fill="#3a1414"/>'
+    '<path d="M8 23h48M8 32h48M8 41h48"/>'
+    '<path d="M20 14v9M44 14v9M8 23v9M32 23v9M56 23v9M20 32v9M44 32v9M8 41v9M32 41v9M56 41v9"/>',
+    _COL["firewall"])
+
+# DMZ zone: fenced/segmented compound
+_DMZ = _svg(
+    '<rect x="10" y="16" width="44" height="32" rx="2" stroke-dasharray="4 3" fill="#3a2e0c"/>'
+    '<rect x="22" y="26" width="20" height="14" rx="1.5"/>'
+    '<line x1="27" y1="26" x2="27" y2="40"/><line x1="37" y1="26" x2="37" y2="40"/>',
+    _COL["dmz"])
+
 ICONS: dict[str, str] = {
     "controller": _CONTROLLER,
     "core_switch": _CORE,
     "access_switch": _ACCESS,
     "ap": _AP,
     "aaa": _AAA,
+    "firewall": _FIREWALL,
+    "dmz": _DMZ,
 }
 
 

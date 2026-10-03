@@ -189,6 +189,12 @@ def _chk_mobility(pri, sec):
 
 
 def _chk_ap_fallback(pri, sec):
+    """
+    Every AP needs a distinct, configured secondary controller -- DC-local APs
+    fail over WLC-PRI -> WLC-SEC; branch/spoke FlexConnect APs legitimately run
+    the other way round (primary WLC-SEC, secondary WLC-PRI). Either direction
+    is fine as long as it's set and isn't a no-op (secondary == primary).
+    """
     src = pri if (pri and pri.reachable) else sec
     if src is None or not src.reachable:
         return None
@@ -200,24 +206,26 @@ def _chk_ap_fallback(pri, sec):
     misconfigured = []
     for r in rows:
         ev.append(f"  {r['ap']:<12} primary={r['pname']}({r['pip']})  secondary={r['sname']}({r['sip']})")
-        if r["sname"] != SECONDARY:
+        if not r["sname"] or r["sname"] == r["pname"]:
             misconfigured.append(r["ap"])
     ev.append(f"{src.name}: AP Fallback = {'Enabled' if fallback_enabled else 'NOT Enabled'}")
     if rows and not misconfigured and fallback_enabled:
-        return _mk("ap_fallback", "Every AP has WLC-SEC as N+1 secondary", "AP failover",
-                   PASS, f"All {len(rows)} APs point their secondary controller at {SECONDARY}, "
+        return _mk("ap_fallback", "Every AP has a configured N+1 fallback controller", "AP failover",
+                   PASS, f"All {len(rows)} APs have a distinct secondary controller configured, "
                    "AP fallback enabled.", ev)
     if not rows:
-        return _mk("ap_fallback", "Every AP has WLC-SEC as N+1 secondary", "AP failover", FAIL,
+        return _mk("ap_fallback", "Every AP has a configured N+1 fallback controller", "AP failover", FAIL,
                    "No AP primary/secondary controller assignments found.", ev,
-                   "Configure 'ap ... controller secondary WLC-SEC 192.168.100.20' (or via "
-                   "AP join profile) so APs know where to go when the primary drops.")
+                   "Configure a secondary controller on every AP -- directly, or via the AP "
+                   "join profile's 'capwap backup secondary' -- so APs know where to go when "
+                   "the primary drops.")
     status = FAIL if misconfigured else WARN
-    return _mk("ap_fallback", "Every AP has WLC-SEC as N+1 secondary", "AP failover", status,
-               (f"{len(misconfigured)} AP(s) missing WLC-SEC as secondary: {', '.join(misconfigured)}. "
-                if misconfigured else "") + ("AP fallback disabled." if not fallback_enabled else ""),
+    return _mk("ap_fallback", "Every AP has a configured N+1 fallback controller", "AP failover", status,
+               (f"{len(misconfigured)} AP(s) missing a distinct secondary controller: "
+                f"{', '.join(misconfigured)}. " if misconfigured else "")
+               + ("AP fallback disabled." if not fallback_enabled else ""),
                ev,
-               "Set the secondary controller on every AP and enable AP fallback; otherwise "
+               "Set a distinct secondary controller on every AP and enable AP fallback; otherwise "
                "those APs will not return automatically and may not fail over at all.")
 
 
