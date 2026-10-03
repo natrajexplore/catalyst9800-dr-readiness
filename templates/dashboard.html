@@ -226,6 +226,7 @@
       <span><i style="border-color:var(--pass)"></i>mobility tunnel</span>
       <span><i style="border-color:var(--fail)"></i>down</span>
       <span><i style="border-color:var(--muted)"></i>Po10 / Po11 uplink &middot; access &middot; RADIUS</span>
+      <span><i style="border-color:#58a6ff"></i>client (2 per AP) &mdash; drops &amp; reconnects on failover</span>
       <span><i style="border-color:#f85149;border-top-style:dashed"></i>Guest (Vlan54) &rarr; firewall &rarr; DMZ</span>
       <span><i style="border-color:#3ea6ff;border-top-style:dashed"></i>site boundary (DC / branch)</span>
     </div>
@@ -335,7 +336,7 @@ function fmtRTO(s){
 
 /* ---------- topology ---------- */
 const SSH_USER = {{ ssh_user | tojson }};
-const GSIZE = {controller:34, core_switch:28, access_switch:22, ap:24, aaa:26, firewall:28, dmz:30};
+const GSIZE = {controller:34, core_switch:28, access_switch:22, ap:24, aaa:26, firewall:28, dmz:30, client:10};
 const netBanner = document.getElementById('netBanner');
 
 function edgeStyle(e){
@@ -364,6 +365,8 @@ function transitionTopo(){
       migrating.add(e.target);
     } else if(e.type==='mobility'){
       edges.push({...e, status:'down'});
+    } else if(e.type==='client' && migrating.has(e.source)){
+      edges.push({...e, status:'down'}); migrating.add(e.target);
     } else edges.push(e);
   });
   return {nodes, edges, migrating:[...migrating]};
@@ -394,7 +397,8 @@ function drawTopo(which){
       borderWidth: mig?3:0, color: mig?{border:c('--warn')}:undefined,
       _ip: n.ip || n.mgmt_ip || null, _type:n.type,
       _platform: n.platform || n.model || null,
-      title:Object.entries(n).filter(([k])=>!['id','label','type','icon','ip','mgmt_ip','x','y'].includes(k))
+      _mac: n.mac || null, _wlan: n.wlan || null, _ap: n._ap || null,
+      title:Object.entries(n).filter(([k])=>!['id','label','type','icon','ip','mgmt_ip','x','y','_ap'].includes(k))
               .map(([k,v])=>`${k}: ${v}`).join('\n'),
     };
     if(dead){
@@ -455,14 +459,15 @@ function ensureGraph3D(){
     .linkDirectionalArrowRelPos(1)
     .nodeThreeObjectExtend(true)
     .nodeThreeObject(n => {
-      const sub = n._dead ? 'UNREACHABLE' : (n._platform || '');
+      const isClient = n._type==='client';
+      const sub = n._dead ? 'UNREACHABLE' : (isClient ? '' : (n._platform || ''));
       const txt = new SpriteText(sub ? `${n.label}\n${sub}` : n.label);
-      txt.color = n._dead ? '#ffb4b4' : c('--ink');
-      txt.backgroundColor = c('--panel') + 'cc';
+      txt.color = n._dead ? '#ffb4b4' : (isClient ? c('--muted') : c('--ink'));
+      txt.backgroundColor = isClient ? false : c('--panel') + 'cc';
       txt.padding = 2;
       txt.borderRadius = 3;
-      txt.textHeight = 3.2;
-      txt.position.y = 7;
+      txt.textHeight = isClient ? 1.8 : 3.2;
+      txt.position.y = isClient ? 3 : 7;
       return txt;
     })
     .onNodeClick((n, ev) => openDevPopup(n, ev.clientX, ev.clientY))
@@ -473,7 +478,7 @@ function ensureGraph3D(){
   scene.children.filter(o=>o.isDirectionalLight).forEach(o=>o.intensity=0.65);
 }
 const NODE3D_COLOR = {controller:'#3ea6ff', core_switch:'#a371f7', access_switch:'#8b949e',
-                       ap:'#3fb950', aaa:'#d29922', firewall:'#f85149', dmz:'#d29922'};
+                       ap:'#3fb950', aaa:'#d29922', firewall:'#f85149', dmz:'#d29922', client:'#58a6ff'};
 function edgeColor3D(e){
   if(e.status==='discovering') return c('--warn');
   if(e.status==='down')        return c('--fail');
@@ -493,6 +498,7 @@ function drawTopo3D(which){
     return {
       id:n.id, label: n.label, _type:n.type, _dead:dead, _mig:migrating.has(n.id),
       _ip:n.ip||n.mgmt_ip||null, _platform:n.platform||n.model||null, _site:site,
+      _mac:n.mac||null, _wlan:n.wlan||null, _ap:n._ap||null,
       fx: (n.x||0)/4, fy: -(SITE_Z[site]||0)/4, fz: (n.y||0)/4,
     };
   });
@@ -570,11 +576,14 @@ function esc2(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 
 function openDevPopup(n, clientX, clientY){
   popNode = n;
-  document.getElementById('dpName').textContent = n.label;
-  document.getElementById('dpIp').textContent =
-    (n._ip || 'no management IP discovered') + (n._platform ? '  ·  ' + n._platform : '');
+  const isClient = n._type==='client';
+  document.getElementById('dpName').textContent = isClient ? `Client …${n._mac?n._mac.slice(-9):n.label}` : n.label;
+  document.getElementById('dpIp').textContent = isClient
+    ? `WLAN ${n._wlan||'?'} &middot; associated to ${n._ap||'?'}`.replace('&middot;','·')
+    : (n._ip || 'no management IP discovered') + (n._platform ? '  ·  ' + n._platform : '');
   dpOut.hidden = true; dpOut.innerHTML='';
-  const noGui = (n._type==='ap' || !n._ip);
+  document.getElementById('dpCli').classList.toggle('dis', isClient);
+  const noGui = (n._type==='ap' || isClient || !n._ip);
   document.getElementById('dpGui').classList.toggle('dis', noGui && !LIVE);
   pop.style.left = Math.min(clientX+12, window.innerWidth-280) + 'px';
   pop.style.top  = Math.min(clientY+12, window.innerHeight-260) + 'px';
@@ -591,8 +600,8 @@ function show(html){ dpOut.hidden=false; dpOut.innerHTML = html; }
 
 document.getElementById('devPopupX').onclick = ()=> pop.style.display='none';
 
-document.getElementById('dpCli').onclick = ()=>{
-  if(!popNode) return;
+document.getElementById('dpCli').onclick = (e)=>{
+  if(!popNode || e.target.classList.contains('dis')) return;
   const ip = popNode._ip || popNode.label;
   const cmd = `ssh ${SSH_USER}@${ip}`;
   navigator.clipboard && navigator.clipboard.writeText(cmd).catch(()=>{});

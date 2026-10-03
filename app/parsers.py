@@ -141,8 +141,13 @@ def parse_client_summary(text: str) -> dict:
     m = re.search(r"Number of Excluded Clients:\s*(\d+)", text)
     excluded = int(m.group(1)) if m else 0
     per_wlan: dict[str, int] = {}
+    by_ap: dict[str, list[dict]] = {}
+    row_re = re.compile(r"^\s*([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\S+)\s+WLAN\s+(\d+)\s+\w", re.I)
     for line in text.splitlines():
-        mm = re.search(r"\bWLAN\s+(\d+)\s+\w", line)
-        if mm:
-            per_wlan[mm.group(1)] = per_wlan.get(mm.group(1), 0) + 1
-    return {"count": count, "excluded": excluded, "per_wlan": per_wlan}
+        row = row_re.match(line)
+        if not row:
+            continue
+        mac, ap, wlan = row.groups()
+        per_wlan[wlan] = per_wlan.get(wlan, 0) + 1
+        by_ap.setdefault(ap, []).append({"mac": mac, "wlan": wlan})
+    return {"count": count, "excluded": excluded, "per_wlan": per_wlan, "by_ap": by_ap}

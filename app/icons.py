@@ -18,6 +18,7 @@ _COL = {
     "aaa": "#bb8009",
     "firewall": "#f85149",
     "dmz": "#d29922",
+    "client": "#58a6ff",
 }
 
 
@@ -82,6 +83,12 @@ _DMZ = _svg(
     '<line x1="27" y1="26" x2="27" y2="40"/><line x1="37" y1="26" x2="37" y2="40"/>',
     _COL["dmz"])
 
+# client device: small laptop glyph
+_CLIENT = _svg(
+    '<rect x="14" y="18" width="36" height="24" rx="2" fill="#0d2238"/>'
+    '<line x1="10" y1="48" x2="54" y2="48"/>',
+    _COL["client"])
+
 ICONS: dict[str, str] = {
     "controller": _CONTROLLER,
     "core_switch": _CORE,
@@ -90,6 +97,7 @@ ICONS: dict[str, str] = {
     "aaa": _AAA,
     "firewall": _FIREWALL,
     "dmz": _DMZ,
+    "client": _CLIENT,
 }
 
 

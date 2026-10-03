@@ -140,11 +140,17 @@ exec:
       AP-BR2-02                         WLC-SEC           192.168.100.20    WLC-PRI           192.168.100.10
 
     "show wireless client summary": |
-      Number of Clients: 2
+      Number of Clients: 8
       MAC Address    AP Name                                        Type ID   State             Protocol Method     Role
       -------------------------------------------------------------------------------------------------------------------------
       2000.0005.0001 AP-BR1-01                                     WLAN 51   Run               11ac     Dot1x      Local
-      2000.0007.0001 AP-BR2-01                                     WLAN 54   Run               11n(2.4) Webauth    Local
+      2000.0005.0002 AP-BR1-01                                     WLAN 54   Run               11n(2.4) Webauth    Local
+      2000.0006.0001 AP-BR1-02                                     WLAN 51   Run               11ac     Dot1x      Local
+      2000.0006.0002 AP-BR1-02                                     WLAN 54   Run               11n(2.4) Webauth    Local
+      2000.0007.0001 AP-BR2-01                                     WLAN 51   Run               11ac     Dot1x      Local
+      2000.0007.0002 AP-BR2-01                                     WLAN 54   Run               11n(2.4) Webauth    Local
+      2000.0008.0001 AP-BR2-02                                     WLAN 51   Run               11ac     Dot1x      Local
+      2000.0008.0002 AP-BR2-02                                     WLAN 54   Run               11n(2.4) Webauth    Local
       Number of Excluded Clients: 0
 
     "show wireless mobility summary": |

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from app.icons import icon_for
 
-NODE_TYPES = ("controller", "core_switch", "access_switch", "ap", "aaa", "client_group")
+NODE_TYPES = ("controller", "core_switch", "access_switch", "ap", "aaa", "client", "firewall", "dmz")
 
 # Cisco CLI interface-name abbreviations, for CML-style short edge labels.
 _IF_ABBR = [
@@ -22,8 +22,9 @@ _IF_ABBR = [
 # deterministic, CML-style grid layout: column = site, row = device tier
 _SITE_X = {"LAB-DC1": -280, "LAB-DC2": 280, "BRANCH-01": -520, "BRANCH-02": 520}
 _ROW_Y = {"aaa": -320, "controller": -170, "core_switch": -40,
-          "access_switch": 90, "ap": 220, "firewall": 320, "dmz": 400}
+          "access_switch": 90, "ap": 220, "client": 300, "firewall": 320, "dmz": 400}
 _LANE_GAP = 110
+_CLIENT_GAP = 30
 
 # the Guest WLAN's traffic path is a fixed, known design (every site anchors
 # guest wireless to the edge firewall / DMZ) -- it isn't something any `show`
@@ -64,6 +65,22 @@ def _layout(nodes: dict) -> None:
         for i, nid in enumerate(sorted(ids)):
             nodes[nid]["x"] = base_x + start + i * _LANE_GAP
             nodes[nid]["y"] = y
+
+
+def _layout_clients(nodes: dict) -> None:
+    """Anchor each client directly under its own AP -- a small cluster, not an
+    independent lane -- so the diagram reads as "this AP has these clients"
+    rather than scattering them across the whole site row."""
+    by_ap: dict[str, list[str]] = {}
+    for nid, n in nodes.items():
+        if n["type"] == "client" and n.get("_ap") in nodes:
+            by_ap.setdefault(n["_ap"], []).append(nid)
+    for ap_id, cids in by_ap.items():
+        ap = nodes[ap_id]
+        start = -(len(cids) - 1) * _CLIENT_GAP / 2
+        for i, nid in enumerate(sorted(cids)):
+            nodes[nid]["x"] = ap["x"] + start + i * _CLIENT_GAP
+            nodes[nid]["y"] = ap["y"] + 80
 
 
 def build(controllers: dict, scenario: str) -> dict:
@@ -131,12 +148,13 @@ def build(controllers: dict, scenario: str) -> dict:
         aps = _facts(cd).get("aps", [])
         cdp_by_ap = {r["ap"]: r for r in _facts(cd).get("ap_cdp", [])}
         prim_by_ap = {r["ap"]: r for r in _facts(cd).get("ap_primary", [])}
+        clients_by_ap = _facts(cd).get("clients", {}).get("by_ap", {})
         for ap in aps:
+            ap_up = str(ap.get("state", "")).lower() in ("registered", "joined")
             add_node(ap["name"], ap["name"], "ap", model=ap.get("model"),
                      platform=ap.get("model"), ip=ap.get("ip"),
                      ap_site=ap.get("location"), state=ap.get("state"))
-            add_edge(cd.name, ap["name"], "capwap", "CAPWAP",
-                     "up" if str(ap.get("state", "")).lower() in ("registered", "joined") else "down")
+            add_edge(cd.name, ap["name"], "capwap", "CAPWAP", "up" if ap_up else "down")
             # configured secondary -> dashed standby edge
             pr = prim_by_ap.get(ap["name"])
             if pr and pr["sname"] and pr["sname"] != cd.name:
@@ -148,6 +166,12 @@ def build(controllers: dict, scenario: str) -> dict:
                 sw = cn["neighbor"].split(".")[0]
                 add_node(sw, sw, "access_switch", site=ap.get("location"))
                 add_edge(sw, ap["name"], "access", _short_if(cn.get("neighbor_port", "")))
+            # associated clients -- a small cluster hanging off their AP
+            for cl in clients_by_ap.get(ap["name"], []):
+                cid = f"cli:{cl['mac']}"
+                add_node(cid, cl["mac"][-4:], "client", mac=cl["mac"], wlan=cl.get("wlan"),
+                         ap_site=ap.get("location"), _ap=ap["name"])
+                add_edge(ap["name"], cid, "client", "", "up" if ap_up else "down")
 
     # ---- AAA / ISE ---------------------------------------------------
     for cd in (pri, sec):
@@ -172,6 +196,7 @@ def build(controllers: dict, scenario: str) -> dict:
             add_edge(cd.name, "FW-EDGE", "guest_dmz", "Guest WLAN")
 
     _layout(nodes)
+    _layout_clients(nodes)
 
     return {
         "scenario": scenario,
@@ -180,6 +205,7 @@ def build(controllers: dict, scenario: str) -> dict:
         "stats": {
             "controllers": sum(n["type"] == "controller" for n in nodes.values()),
             "aps": sum(n["type"] == "ap" for n in nodes.values()),
+            "clients": sum(n["type"] == "client" for n in nodes.values()),
             "switches": sum(n["type"] in ("core_switch", "access_switch") for n in nodes.values()),
         },
     }
