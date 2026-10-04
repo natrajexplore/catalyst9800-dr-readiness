@@ -4,3 +4,4 @@
 # (see README.md). "pyats[library]" pulls genie + unicon + the parser library.
 pyats[library]>=25.1
 flask>=3.0
+asyncssh>=2.14   # real SSH server for the virtual core switch (app/virtual_switch.py)

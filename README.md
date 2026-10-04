@@ -34,6 +34,12 @@ change (`lab/testbed.yaml`).
   outage opens an interactive terminal (login, `configure terminal`, then the
   real Port-channel10/11 commands for whichever method you picked) instead of
   a button — you watch the commands "run" before the DR timeline continues.
+- **Live SSH mode**: a second mode next to the scripted demo. The dashboard
+  starts a real SSH server (`app/virtual_switch.py`) standing in for the core
+  switch — open PuTTY (or any SSH client) yourself, log in, and run the actual
+  `configure terminal` / `interface Port-channel10` / `shutdown` / `no
+  shutdown`. The 2D (and 3D) topology polls that switch every 2 seconds and
+  reacts to whatever you type, live.
 - **Light / dark theme**, both fully contrast-checked on the topology diagram
   and the device-popup/terminal UI.
 
@@ -123,6 +129,13 @@ python app/web.py            # http://127.0.0.1:5000
 #     re-registering on WLC-SEC once you continue
 #   - toggle 2D / 3D on the topology panel, and Dark / Light in the header
 #   - click any device -> Web UI (simulated login page) or CLI (copies ssh cmd)
+#   - switch "Scripted demo" -> "Live SSH" on the failover panel: the
+#     dashboard shows you a real SSH command (ssh cisco@<host> -p 2222,
+#     password Lab@12345) to a virtual core switch it just started
+#     (app/virtual_switch.py). Open that in PuTTY yourself and run
+#     configure terminal / interface Port-channel10 / shutdown / no shutdown
+#     -- the topology polls it every 2s and reacts to whatever you type,
+#     live, no script involved
 
 # as a pyATS job (CI / pyATS reporting)
 pyats run job tests/dr_readiness/job.py
@@ -166,11 +179,18 @@ app/scenario.py         collect healthy -> operator gate + per-method CLI
                         script + timeline -> collect failover -> diff
                         (APs moved, clients moved, RTO)
 app/reports.py          JSON + HTML report writers
-app/web.py              Flask dashboard
+app/virtual_switch.py   a real SSH server (asyncssh) standing in for the DC1
+                        core switch -- enough Cisco-style CLI to SSH in with
+                        PuTTY and run configure terminal / interface
+                        Port-channel10 / shutdown / no shutdown by hand.
+                        Admin state goes to run/vswitch_state.json
+app/web.py              Flask dashboard; starts the virtual switch in the
+                        background and exposes /api/live_state for it
 templates/dashboard.html  readiness gauge, 2D (vis-network) + 3D
                         (3d-force-graph) topology toggle, light/dark theme,
-                        the simulated CLI-login failover trigger, before/
-                        after diff
+                        the simulated CLI-login failover trigger, a Live SSH
+                        mode that polls /api/live_state every 2s instead,
+                        before/after diff
 tests/dr_readiness/     the same engine as a pyATS aetest Testcase
 tests/test_readonly.py  proves only 'show' commands can be issued
 ```

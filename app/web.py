@@ -9,7 +9,14 @@ Routes:
     /api/failover      the scripted-failover result as JSON
     /api/readiness     readiness for ?scenario=healthy|failover
     /api/topology      topology for ?scenario=healthy|failover
+    /api/live_state    live Port-channel10 state from the virtual core switch
+    /api/live_reset    POST: reset the virtual switch's interfaces back to up
     /healthz           liveness probe
+
+A real SSH server (app/virtual_switch.py) also starts in the background on
+port 2222 -- `ssh cisco@127.0.0.1 -p 2222` (password Lab@12345) from PuTTY or
+any SSH client lets you run the actual shutdown / no shutdown commands by
+hand; /api/live_state is what the dashboard polls to animate the topology.
 """
 
 from __future__ import annotations
@@ -25,11 +32,13 @@ from flask import Flask, jsonify, render_template, request
 from app import readiness as readiness_mod
 from app import scenario as scenario_mod
 from app import topology as topology_mod
+from app import virtual_switch
 from app.collectors import collect_all
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 app = Flask(__name__, template_folder=str(TEMPLATE_DIR))
 SSH_USER = os.environ.get("C9800_USERNAME", "admin")
+VSWITCH_PORT = int(os.environ.get("VSWITCH_PORT", "2222"))
 
 # collect_all is slow (~1 min); cache per process. ?refresh=1 busts it.
 _CACHE: dict[str, object] = {}
@@ -68,6 +77,18 @@ def api_topology():
     return jsonify(topology_mod.build(ctrls, scen))
 
 
+@app.route("/api/live_state")
+def api_live_state():
+    state = virtual_switch.read_state()
+    return jsonify({**state, "po10_down": virtual_switch.is_po10_down(state)})
+
+
+@app.route("/api/live_reset", methods=["POST"])
+def api_live_reset():
+    virtual_switch.reset_state()
+    return jsonify(virtual_switch.read_state())
+
+
 @app.route("/healthz")
 def healthz():
     return {"ok": True}
@@ -99,5 +120,13 @@ def mock_webui():
 
 
 if __name__ == "__main__":
+    _debug = True
+    # debug=True runs under werkzeug's reloader, which re-execs this script
+    # into a child process; only that child sets WERKZEUG_RUN_MAIN, so the
+    # SSH server must start there (or immediately, if the reloader is ever
+    # turned off) -- otherwise the watcher process binds the port first and
+    # the real child fails to start it.
+    if not _debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        virtual_switch.start_background(port=VSWITCH_PORT)
     app.run(host=os.environ.get("HOST", "127.0.0.1"),
-            port=int(os.environ.get("PORT", "5000")), debug=True)
+            port=int(os.environ.get("PORT", "5000")), debug=_debug)

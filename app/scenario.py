@@ -98,12 +98,14 @@ _METHODS = {
             (35, "failover", "transition", "APs discover and select secondary controller",
              "Configured secondary WLC-SEC (192.168.100.20) answers. DTLS + CAPWAP join starts."),
             (90, "failover", "after", "APs CAPWAP-joined to WLC-SEC",
-             "All {ap_count} APs Registered on WLC-SEC (~90s to join the full fleet). Radios reset, SSIDs re-broadcast."),
+             "All {ap_count} migrated APs Registered on WLC-SEC (~90s to join), alongside the branch "
+             "APs already there -- {ap_total} APs now served in total. Radios reset, SSIDs re-broadcast."),
             (118, "failover", "after", "Clients re-associate and re-authenticate",
-             "802.1X clients re-auth against ISE via WLC-SEC. ~{client_count} clients back to Run."),
+             "802.1X clients re-auth against ISE via WLC-SEC. ~{client_count} migrated clients back to "
+             "Run ({client_total} total now on WLC-SEC)."),
             (132, "recovered", "after", "Wireless service restored on the DR controller",
-             "WLC-SEC serving {ap_count} APs / {client_count} clients -- 2m12s after the shutdown. "
-             "Mobility peer to WLC-PRI Down (expected)."),
+             "WLC-SEC serving {ap_total} APs / {client_total} clients in total ({ap_count} newly "
+             "migrated from WLC-PRI) -- 2m12s after the shutdown. Mobility peer to WLC-PRI Down (expected)."),
         ],
     },
     "portchannel": {
@@ -154,12 +156,14 @@ _METHODS = {
             (70, "failover", "transition", "APs discover and select secondary controller",
              "Configured secondary WLC-SEC (192.168.100.20) answers discovery. CAPWAP join starts."),
             (128, "failover", "after", "APs CAPWAP-joined to WLC-SEC",
-             "All {ap_count} APs Registered on WLC-SEC (~90s to join the full fleet). Radios reset, SSIDs re-broadcast."),
+             "All {ap_count} migrated APs Registered on WLC-SEC (~90s to join), alongside the branch "
+             "APs already there -- {ap_total} APs now served in total. Radios reset, SSIDs re-broadcast."),
             (155, "failover", "after", "Clients re-associate and re-authenticate",
-             "802.1X clients re-auth against ISE via WLC-SEC. ~{client_count} clients back to Run."),
+             "802.1X clients re-auth against ISE via WLC-SEC. ~{client_count} migrated clients back to "
+             "Run ({client_total} total now on WLC-SEC)."),
             (168, "recovered", "after", "Wireless service restored on the DR controller",
-             "WLC-SEC serving {ap_count} APs / {client_count} clients -- 2m48s after the shutdown. "
-             "Mobility peer to WLC-PRI Down (expected)."),
+             "WLC-SEC serving {ap_total} APs / {client_total} clients in total ({ap_count} newly "
+             "migrated from WLC-PRI) -- 2m48s after the shutdown. Mobility peer to WLC-PRI Down (expected)."),
         ],
     },
 }
@@ -172,8 +176,16 @@ def run() -> dict:
     before = _snapshot(before_ctrls, "healthy")
     after = _snapshot(after_ctrls, "failover")
 
+    # ap_count/client_count: WLC-PRI's OWN fleet -- the ones that actually
+    # migrate. ap_total/client_total: WLC-SEC's fleet *after* absorbing them,
+    # which also includes the branch APs/clients that were on WLC-SEC all
+    # along. Conflating the two previously made the "after" narration claim
+    # WLC-SEC was "serving {ap_count} APs" -- i.e. only the migrated 4 -- when
+    # the branch sites mean it's actually serving all 8.
     ap_count = len(before["controllers"]["WLC-PRI"]["aps"])
     client_count = before["controllers"]["WLC-PRI"]["clients"]["count"]
+    ap_total = len(after["controllers"]["WLC-SEC"]["aps"])
+    client_total = after["controllers"]["WLC-SEC"]["clients"]["count"]
 
     def fmt(steps):
         out = []
@@ -184,7 +196,8 @@ def run() -> dict:
                 "phase": phase,
                 "topo": topo,
                 "headline": headline,
-                "detail": detail.format(ap_count=ap_count, client_count=client_count),
+                "detail": detail.format(ap_count=ap_count, client_count=client_count,
+                                         ap_total=ap_total, client_total=client_total),
             })
         return out
 

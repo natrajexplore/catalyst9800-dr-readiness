@@ -25,7 +25,7 @@ fi
 
 echo ">> installing requirements (this takes a few minutes the first time)"
 "$VENV/bin/pip" install -q --upgrade pip
-"$VENV/bin/pip" install -q "pyats[library]>=25.1" "flask>=3.0"
+"$VENV/bin/pip" install -q -r "$SRC/requirements.txt"
 
 cat <<EOF
 

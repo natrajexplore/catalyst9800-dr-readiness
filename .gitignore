@@ -19,6 +19,9 @@ runinfo/
 /reports/*.json
 /reports/*.html
 
+# virtual-switch runtime state + generated SSH host key
+/run/
+
 # scratch
 .smoke.sh
 .warm.sh

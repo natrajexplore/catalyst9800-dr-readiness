@@ -94,6 +94,11 @@
           font-size:11.5px;color:var(--muted)}
   .legend i{display:inline-block;width:20px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
 
+  .live-ssh .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .live-dot{width:10px;height:10px;border-radius:50%;background:var(--pass);flex:0 0 auto;
+    transition:background .2s}
+  .live-dot.down{background:var(--fail)}
+
   /* device action popup */
   #devPopup{position:fixed;z-index:50;min-width:262px;max-width:320px;background:var(--panel);
     border:1px solid var(--accent);border-radius:10px;padding:12px;display:none;
@@ -193,16 +198,36 @@
 <div class="wrap" id="wrap">
 
   <div class="panel full" id="failoverPanel">
-    <h2>Scripted site failover &nbsp;·&nbsp; LAB-DC1 outage</h2>
+    <h2>Site failover &nbsp;·&nbsp; LAB-DC1 outage
+        <span class="viewToggle">
+          <button id="modeDemoBtn" class="on" type="button">Scripted demo</button>
+          <button id="modeLiveBtn" type="button">Live SSH</button>
+        </span></h2>
     <div class="body">
-      <div class="tl-controls">
-        <button class="play" id="playBtn">&#9654; Play failover</button>
-        <button class="ghost" id="resetBtn">Reset</button>
-        <span class="sub" id="phaseTxt"></span>
-        <span class="sub" style="margin-left:auto" id="rtoTxt"></span>
+      <div id="scriptedControls">
+        <div class="tl-controls">
+          <button class="play" id="playBtn">&#9654; Play failover</button>
+          <button class="ghost" id="resetBtn">Reset</button>
+          <span class="sub" id="phaseTxt"></span>
+          <span class="sub" style="margin-left:auto" id="rtoTxt"></span>
+        </div>
+        <div class="tl" id="timeline"></div>
+        <div id="trigger" hidden></div>
       </div>
-      <div class="tl" id="timeline"></div>
-      <div id="trigger" hidden></div>
+      <div id="liveControls" class="live-ssh" hidden>
+        <div class="row">
+          <span class="live-dot" id="liveDot"></span>
+          <b id="liveIfaceState">Port-channel10: UP</b>
+          <span class="sub" id="livePhaseTxt">steady state</span>
+          <button class="ghost" id="liveResetBtn" style="margin-left:auto">Reset interfaces</button>
+        </div>
+        <div class="sub" style="margin:10px 0 4px">
+          This tool never sends config. Open your own SSH client (PuTTY, etc.) and run the
+          shutdown / no shutdown yourself -- the topology below polls the switch every 2s and
+          reacts to whatever you do.
+        </div>
+        <pre class="term" id="liveHelp" style="color:var(--ink)"></pre>
+      </div>
     </div>
   </div>
 
@@ -324,9 +349,10 @@ function fmtRTO(s){
   host.innerHTML = `
     <div class="kv">
       <b>APs failed over</b><span>${d.aps_failed_over_count} — ${d.aps_failed_over.join(', ')||'none'}</span>
-      <b>APs on WLC-PRI (before)</b><span>${d.aps_on_pri_before.join(', ')||'none'}</span>
-      <b>APs on WLC-SEC (after)</b><span>${d.aps_on_sec_after.join(', ')||'none'}</span>
-      <b>Clients</b><span>${d.clients_before_pri} on WLC-PRI → ${d.clients_after_sec} on WLC-SEC</span>
+      <b>APs on WLC-PRI (before)</b><span>${d.aps_on_pri_before.length} — ${d.aps_on_pri_before.join(', ')||'none'}</span>
+      <b>APs on WLC-SEC (before)</b><span>${d.aps_on_sec_before.length} — ${d.aps_on_sec_before.join(', ')||'none'} <i class="sub">(branch sites, unaffected)</i></span>
+      <b>APs on WLC-SEC (after)</b><span>${d.aps_on_sec_after.length} total — ${d.aps_on_sec_after.join(', ')||'none'}</span>
+      <b>Clients</b><span>${d.clients_before_pri} on WLC-PRI → ${d.clients_after_sec} total on WLC-SEC</span>
       <b>WLC-PRI reachable after</b><span>${d.primary_reachable_after}</span>
       <b>Readiness</b><span>
         <span class="pill ${d.readiness_before}">${d.readiness_before}</span> steady →
@@ -680,7 +706,8 @@ document.addEventListener('click', ev=>{
       topoPanel.scrollIntoView({behavior:'smooth',block:'center'});
       if(ev.topo==='transition') showBanner('⚡  '+ev.headline,'evt');
       else if(ev.topo==='after') showBanner('✔  Wireless restored on WLC-SEC — '
-        +RESULT.diff.aps_failed_over_count+' APs migrated','ok');
+        +RESULT.diff.aps_failed_over_count+' APs migrated, '
+        +RESULT.diff.aps_on_sec_after.length+' APs total now served','ok');
       else hideBanner();
     } else if(ev.phase==='event'){ showBanner('⚡  '+ev.headline,'evt'); }
   }
@@ -812,6 +839,79 @@ document.addEventListener('click', ev=>{
 
   buildInitial();
   rtoTxt.textContent = RTOMAX ? 'modelled RTO ≈ up to '+RTOMAX+'s' : '';
+})();
+
+/* ---------- live SSH mode: poll the real virtual-switch state, drive the
+   same before/transition/after topology a real operator's own shutdown /
+   no shutdown commands would cause ---------------------------------------- */
+(function(){
+  const LOGIN = RESULT.login || {username:'cisco', password:'Lab@12345'};
+  const LIVE_TRANSITION_MS = 15000;  // how long to show "failing over" before "after"
+  const host = location.hostname || '127.0.0.1';
+  document.getElementById('liveHelp').textContent =
+`ssh ${LOGIN.username}@${host} -p 2222
+password: ${LOGIN.password}
+
+DC1-CORE-SW1> enable
+DC1-CORE-SW1# configure terminal
+DC1-CORE-SW1(config)# interface Port-channel10
+DC1-CORE-SW1(config-if)# shutdown      <- triggers the failover below
+DC1-CORE-SW1(config-if)# no shutdown   <- restores steady state`;
+
+  let liveMode = false, liveTimer = null, liveWhich = null, liveDownSince = null;
+
+  async function pollLive(){
+    let s;
+    try { s = await (await fetch('/api/live_state', {cache:'no-store'})).json(); }
+    catch(e){ return; }
+    const down = !!s.po10_down;
+    document.getElementById('liveIfaceState').textContent = `Port-channel10: ${down?'DOWN':'UP'}`;
+    document.getElementById('liveDot').classList.toggle('down', down);
+
+    let target;
+    if(!down){ liveDownSince = null; target = 'before'; }
+    else {
+      if(liveDownSince === null) liveDownSince = Date.now();
+      target = (Date.now() - liveDownSince < LIVE_TRANSITION_MS) ? 'transition' : 'after';
+    }
+    document.getElementById('livePhaseTxt').textContent =
+      target==='before' ? 'steady state'
+      : target==='transition' ? 'FAILING OVER — APs discovering WLC-SEC…'
+      : 'recovered on WLC-SEC (LAB-DC1 down)';
+
+    if(target !== liveWhich){
+      liveWhich = target;
+      drawTopo(target);
+      topoPanelLive.classList.toggle('hot', target!=='before');
+    }
+  }
+
+  const topoPanelLive = document.getElementById('topoPanel');
+
+  function setLiveMode(on){
+    liveMode = on;
+    document.getElementById('modeDemoBtn').classList.toggle('on', !on);
+    document.getElementById('modeLiveBtn').classList.toggle('on', on);
+    document.getElementById('scriptedControls').hidden = on;
+    document.getElementById('liveControls').hidden = !on;
+    if(on){
+      liveWhich = null; liveDownSince = null;
+      pollLive();
+      liveTimer = setInterval(pollLive, 2000);
+    } else {
+      clearInterval(liveTimer); liveTimer = null;
+      topoPanelLive.classList.remove('hot');
+      drawTopo('before');
+    }
+  }
+
+  document.getElementById('modeDemoBtn').onclick = ()=> setLiveMode(false);
+  document.getElementById('modeLiveBtn').onclick = ()=> setLiveMode(true);
+  document.getElementById('liveResetBtn').onclick = async ()=>{
+    await fetch('/api/live_reset', {method:'POST'});
+    liveDownSince = null; liveWhich = null;
+    pollLive();
+  };
 })();
 </script>
 </body>
